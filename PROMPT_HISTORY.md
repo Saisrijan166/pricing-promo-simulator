@@ -772,9 +772,9 @@ Decisions and deviations the AI flagged for review:
   - the `-Dpricing.policy.freshness-hours=48` override is recorded in the manifest.
 
 **Verification (after the push):**
-- `git push origin main` (fast-forward `6574e1c..236ce85`); `origin/main` equals local `main`. The repository page
+- `git push origin main` (fast-forward `6574e1c..04e0ef4`); `origin/main` equals local `main`. The repository page
   returns HTTP 200 without login.
-- `./scripts/fresh_clone_test.sh https://github.com/Saisrijan166/pricing-promo-simulator.git` on `236ce85`
+- `./scripts/fresh_clone_test.sh https://github.com/Saisrijan166/pricing-promo-simulator.git` on `04e0ef4`
   → **FRESH-CLONE TEST PASSED** on the first attempt; no `fix:` commit was needed:
   - clone;
   - `.env` with port 55432 and its own Compose project;
