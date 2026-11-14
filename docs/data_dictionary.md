@@ -197,18 +197,18 @@ recomputation that first rounds the average can differ by 0.01.
 | competitor_ref_price | NUMERIC(12,2) | O | INR | | median of USED observations; null if none used |
 | competitor_fresh_count | INTEGER | R | count | | = count of USED bridge rows |
 | competitor_stale_count | INTEGER | R | count | | = count of EXCLUDED_STALE bridge rows |
-| on_hand_units | INTEGER | R | units | | = previous day's closing_on_hand |
-| demand_7d_units | INTEGER | R | units | | = Σ units_sold over the 7 days before effective_date |
-| demand_28d_units | INTEGER | R | units | | = Σ units_sold over the 28 days before effective_date |
-| velocity_ratio | NUMERIC(8,4) | R | ratio | | = (d7 / 7) / (d28 / 28), safe when d28 = 0 |
-| days_of_cover | NUMERIC(8,2) | R | days | | |
+| on_hand_units | INTEGER | R | units | | stock when trading starts: = opening_on_hand + receipts_units of the effective date (previous closing + receipts delivered before 06:00) |
+| demand_7d_units | INTEGER | R | units | | = Σ units_sold over the 7 days before effective_date (n7 = days of history in that window) |
+| demand_28d_units | INTEGER | R | units | | = Σ units_sold over the 28 days before effective_date (n28 = days of history in that window) |
+| velocity_ratio | NUMERIC(8,4) | R | ratio | | = (d7 / n7) / (d28 / n28); 1 when n7, n28 or d28 is 0 |
+| days_of_cover | NUMERIC(8,2) | R | days | | = on_hand_units / max(d28 / n28, 0.1); the average is 0 when n28 = 0 |
 | target_price | NUMERIC(12,2) | R | INR | | engine step S5–S6 output |
 | final_list_price | NUMERIC(12,2) | R | INR | | in [floor, ceiling] (business rule) |
 | markdown_discount_pct | NUMERIC(6,4) | R | fraction | | combined applied markdown |
 | expected_net_price | NUMERIC(12,2) | R | INR | | = final_list × (1 − markdown) |
 | margin_pct | NUMERIC(6,4) | R | fraction | | = (net − landed) / net (business rule: net basis) |
 | required_margin_pct | NUMERIC(6,4) | R | fraction | | min_promo_margin_pct if any promotion applied, else min_margin_pct |
-| decision_type | VARCHAR(8) | R | `DecisionType`: INCREASE, DECREASE, HOLD | | from the sign of final − prev |
+| decision_type | VARCHAR(8) | R | `DecisionType`: INCREASE, DECREASE, HOLD | | from the sign of final − prev; HOLD for INITIAL |
 | primary_reason_code | VARCHAR(32) | R | `ReasonCode` | | |
 | reason_codes | VARCHAR(400) | R | pipe-delimited `ReasonCode`s | | non-empty; every token is a ReasonCode |
 | explanation | TEXT | R | JSON array of explanation steps (S1–S12) | | parseable JSON |
@@ -228,6 +228,10 @@ recomputation that first rounds the average can differ by 0.01.
 | added_at | TIMESTAMPTZ | R | UTC | | ≤ promotion.start_date |
 
 ### 2.2 `order_promotion` — Order ⇄ Promotion (coupon attempts)
+
+Every order also lists the markdowns of its day's price decision (`coupon_presented = false`, APPLIED, per-order
+amount = quantity × per-unit markdown), then the coupons the customer presented (`coupon_presented = true`). So
+`Σ APPLIED discount_amount = gross − net`.
 
 | Field | Type | R/O | Allowed / Unit | U | Validation |
 |---|---|---|---|---|---|

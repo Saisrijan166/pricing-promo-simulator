@@ -26,6 +26,8 @@ public final class SkuState {
     private final ReplenishmentPolicy.Levels levels;
     private final Random demandRandom;
     private final Random operationsRandom;
+    private final Random decisionRandom;
+    private final Random orderRandom;
 
     private final TreeMap<LocalDate, Integer> pipeline = new TreeMap<>();
     private final Deque<Integer> recentUnitsSold = new ArrayDeque<>(COVER_WINDOW_DAYS);
@@ -33,15 +35,20 @@ public final class SkuState {
 
     private boolean started;
     private int onHand;
+    private Integer closingBeforeYesterday;
     private BigDecimal listPrice;
+    private com.pricingsim.domain.model.PriceDecision currentDecision;
+    private PriceSetter.DailyPrice currentPrice;
 
     SkuState(Product product, DemandModel.Latent latent, ReplenishmentPolicy.Levels levels, Random demandRandom,
-             Random operationsRandom) {
+             Random operationsRandom, Random decisionRandom, Random orderRandom) {
         this.product = Objects.requireNonNull(product, "product");
         this.latent = Objects.requireNonNull(latent, "latent");
         this.levels = Objects.requireNonNull(levels, "levels");
         this.demandRandom = demandRandom;
         this.operationsRandom = operationsRandom;
+        this.decisionRandom = decisionRandom;
+        this.orderRandom = orderRandom;
     }
 
     public Product product() {
@@ -68,6 +75,37 @@ public final class SkuState {
         return operationsRandom;
     }
 
+    Random decisionRandom() {
+        return decisionRandom;
+    }
+
+    Random orderRandom() {
+        return orderRandom;
+    }
+
+    /** The decision in effect (held until it is superseded, because its final status is not known before). */
+    public com.pricingsim.domain.model.PriceDecision currentDecision() {
+        return currentDecision;
+    }
+
+    void setCurrentDecision(com.pricingsim.domain.model.PriceDecision decision) {
+        this.currentDecision = decision;
+    }
+
+    /** The price the current decision set (list, shelf and markdowns). */
+    public PriceSetter.DailyPrice currentPrice() {
+        return currentPrice;
+    }
+
+    void setCurrentPrice(PriceSetter.DailyPrice price) {
+        this.currentPrice = price;
+    }
+
+    /** Closing stock two days ago, or null if the SKU has fewer than two simulated days. */
+    public Integer closingBeforeYesterday() {
+        return closingBeforeYesterday;
+    }
+
     /** {@code true} once the SKU has had its first simulated day. */
     public boolean started() {
         return started;
@@ -82,11 +120,23 @@ public final class SkuState {
         return onHand;
     }
 
+    /** Records the day's closing stock; the previous closing moves to {@link #closingBeforeYesterday()}. */
     void setOnHand(int onHand) {
         if (onHand < 0) {
             throw new IllegalStateException(skuId() + ": negative stock " + onHand);
         }
+        if (started && hasHistory) {
+            this.closingBeforeYesterday = this.onHand;
+        }
         this.onHand = onHand;
+        this.hasHistory = true;
+    }
+
+    private boolean hasHistory;
+
+    /** {@code true} once at least one closing stock has been recorded. */
+    public boolean hasClosingHistory() {
+        return hasHistory;
     }
 
     /** List price of the previous simulated day, or {@code null} before the first day. */
@@ -142,5 +192,23 @@ public final class SkuState {
     /** Number of days in the trailing window so far (1–28 once the SKU has started). */
     public int trailingDays() {
         return recentUnitsSold.size();
+    }
+
+    /** Units sold over the last {@code days} recorded days (fewer if the history is shorter). */
+    public int unitsSoldLast(int days) {
+        int sum = 0;
+        int skip = StrictMath.max(0, recentUnitsSold.size() - days);
+        int i = 0;
+        for (int units : recentUnitsSold) {
+            if (i++ >= skip) {
+                sum += units;
+            }
+        }
+        return sum;
+    }
+
+    /** Number of recorded days among the last {@code days} (0 … days). */
+    public int historyDaysLast(int days) {
+        return StrictMath.min(days, recentUnitsSold.size());
     }
 }

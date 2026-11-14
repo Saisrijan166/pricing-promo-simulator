@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
@@ -13,10 +14,14 @@ import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 import com.pricingsim.config.GeneratorProperties;
+import com.pricingsim.config.PricingPolicyProperties;
 import com.pricingsim.config.ScaleProfile;
 import com.pricingsim.generator.DatasetGenerator;
 import com.pricingsim.generator.GenerationSettings;
+import com.pricingsim.domain.enums.ReasonCode;
+import com.pricingsim.generator.sim.EnginePriceSetter;
 import com.pricingsim.generator.sim.MarketSimulator;
+import com.pricingsim.generator.sim.OrderGenerator;
 import com.pricingsim.generator.sink.CsvRowSink;
 
 import picocli.CommandLine.Command;
@@ -44,9 +49,11 @@ public class GenerateCommand implements Callable<Integer> {
     CommandSpec spec;
 
     private final GeneratorProperties properties;
+    private final PricingPolicyProperties policyProperties;
 
-    public GenerateCommand(GeneratorProperties properties) {
+    public GenerateCommand(GeneratorProperties properties, PricingPolicyProperties policyProperties) {
         this.properties = properties;
+        this.policyProperties = policyProperties;
     }
 
     @Override
@@ -56,7 +63,7 @@ public class GenerateCommand implements Callable<Integer> {
         commandLine.add("generate");
         commandLine.addAll(spec.commandLine().getParseResult().originalArgs());
 
-        GenerationSettings settings = scaleOptions.toSettings(properties, commandLine);
+        GenerationSettings settings = scaleOptions.toSettings(properties, policyProperties.toPolicy(), commandLine);
         Path outDir = scaleOptions.outputDirectory(properties);
         Path csvDir = outDir.resolve(CSV_DIR);
         clearCsvDirectory(csvDir);
@@ -66,7 +73,7 @@ public class GenerateCommand implements Callable<Integer> {
                         + " competitors=%d%n",
                 settings.scaleName(), settings.seed(), p.skus(), p.days(), settings.windowStart(),
                 settings.windowEnd(), p.promotions(), p.anomaliesPerType(), p.competitors());
-        out.println("Note: promotions and anomalies are recorded settings; their generators are added in later steps.");
+        out.println("Note: anomalies-per-type is recorded; anomaly injection is added in a later step.");
 
         long started = System.nanoTime(); // timing for the console only; never written to data
         DatasetGenerator.Result result;
@@ -80,14 +87,32 @@ public class GenerateCommand implements Callable<Integer> {
         for (Map.Entry<String, Long> e : result.rowCounts().entrySet()) {
             out.printf("%-26s %12d%n", e.getKey(), e.getValue());
         }
-        MarketSimulator.Stats s = result.simulation();
-        out.println();
-        out.printf(java.util.Locale.ROOT, "SKU-days %d, stockout days %d (%.2f%%), units sold %d, lost sales %d, replenishment orders %d%n",
-                s.skuDays(), s.stockoutDays(), s.skuDays() == 0 ? 0.0 : 100.0 * s.stockoutDays() / s.skuDays(),
-                s.unitsSold(), s.lostSalesUnits(), s.replenishmentOrders());
-        out.printf("Wrote %s in %d ms%n", csvDir, elapsedMs);
+        printSummary(out, result);
+        out.printf("%nWrote %s in %d ms%n", csvDir, elapsedMs);
         out.flush();
         return 0;
+    }
+
+    static void printSummary(PrintWriter out, DatasetGenerator.Result result) {
+        Locale l = Locale.ROOT;
+        MarketSimulator.Stats s = result.simulation();
+        EnginePriceSetter.Stats d = result.decisions();
+        OrderGenerator.Stats o = result.orders();
+        out.println();
+        out.printf(l, "SKU-days %d, units sold %d, lost sales %d, replenishment orders %d%n",
+                s.skuDays(), s.unitsSold(), s.lostSalesUnits(), s.replenishmentOrders());
+        out.printf(l, "Decisions %d %s, escalated %d, manual overrides %d%n", d.decisions(), d.byTrigger(),
+                d.escalated(), d.manualOverrides());
+        out.printf(l, "Orders %d (cancelled %d), coupons presented %d, applied %d, rejected %d%n", o.orders(),
+                o.cancelled(), o.couponsPresented(), o.couponsApplied(), o.couponsRejected());
+        out.println();
+        out.println("Operational exceptions:");
+        out.printf(l, "  %-32s %10d%n", "COMPETITOR_DATA_STALE decisions", d.withReason(ReasonCode.COMPETITOR_DATA_STALE));
+        out.printf(l, "  %-32s %10d%n", "GUARDRAIL_CONFLICT_ESCALATED",
+                d.withReason(ReasonCode.GUARDRAIL_CONFLICT_ESCALATED));
+        out.printf(l, "  %-32s %10d (%.2f%% of SKU-days)%n", "Stockout days", s.stockoutDays(),
+                s.skuDays() == 0 ? 0.0 : 100.0 * s.stockoutDays() / s.skuDays());
+        out.printf(l, "  %-32s %10d%n", "REJECTED coupons", o.couponsRejected());
     }
 
     /** Removes CSV files left by a previous run, so the directory holds exactly this run's tables. */

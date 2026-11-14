@@ -323,8 +323,78 @@ Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 steps 6
 
 This is `BUILD_PROMPTS.md` Prompt 3, unchanged.
 
-**What AI produced:** _In progress. Completed in the last commit of this prompt (PLAN §16 step 9)._
+**What AI produced:** Three commits (PLAN §16 steps 6, 7 and 9):
+- **Pricing building blocks** (`pricing/`, pure Java):
+  - `PricingPolicy` (+ `config/PricingPolicyProperties` and `pricing.policy.*` in `application.yml`).
+  - `GuardrailCalculator`, `MarginCalculator` (net basis only, with no list-price margin method at all) and
+    `CompetitorReferenceResolver` (visibility needs captured and ingested ≤ `decision_ts`; 72 h on capture time;
+    latest per competitor; superseded within 72 h; median).
+  - `DemandSignalCalculator`, `PromotionOffer` and `PromotionStackResolver` (total order on priority, then
+    `promotion_id`; sequential percent-then-amount discounts rounded to the paisa).
+- **Engine:** `PricingEngine` (S1–S12), `PricingContext`, `PricingResult` and `ExplanationStep` (deterministic compact
+  JSON). Every `ReasonCode` is produced.
+- **Generator:**
+  - `PromotionGenerator` writes promotion, promotion_rule, promotion_product and promotion_status_event.
+  - `EnginePriceSetter` replaces `InitialPriceSetter`. It triggers INITIAL / COST_CHANGE / STOCKOUT_EVENT /
+    WEEKLY_REVIEW, adds 1% MANUAL_OVERRIDE, and writes price_decision, both bridges and the status events.
+  - `OrderGenerator` writes customer_order and order_promotion.
+  - `CsvRowSink` now spills sorted runs to disk and merges them, so the heap stays flat at full scale.
+- **Docs:** `docs/pricing_rules.md` (S1–S12, a worked example that is also a test) and `docs/generator_design.md`.
+- **Tests:**
+  - `GuardrailCalculatorTest` (7), `MarginCalculatorTest` (6), `CompetitorReferenceResolverTest` (9),
+    `DemandSignalCalculatorTest` (6), `PromotionStackResolverTest` (11), `PricePointRounderTest` (16).
+  - `PricingEngineTest` (21) and `GoldenScenariosTest` (20 cases in
+    `src/test/resources/golden/pricing_scenarios.json`).
+  - Extended: `DerivedValuesTest` (17), `GeneratorScaleTest` (10), `GeneratorDeterminismTest` (4).
 
-**What I did with it:** _Pending._
+Decisions and deviations the AI flagged for review:
+1. **Guardrail conflict prices above MRP.** PLAN §8 S3 sets price = floor when floor > MRP. PLAN §2 assumption 4 calls
+   MRP a legal hard ceiling. The engine follows S3 and escalates to an OPS_MANAGER. This is the only case where a list
+   price exceeds MRP (1 SKU-day in starter). The test asserts "no price above MRP except escalated guardrail
+   conflicts", and `docs/pricing_rules.md` § Known tension records it. Developer decision needed: keep the S3
+   behaviour, or cap at MRP and accept a sub-minimum margin.
+2. **Definitions made precise; PLAN §5.9, §7.2 and `docs/data_dictionary.md` updated:**
+   - `on_hand_units` = previous closing + receipts delivered before trading (on the first day there is no previous
+     closing).
+   - `velocity_ratio = (d7/n7)/(d28/n28)`, using days with history, and 1 without sales.
+   - `days_of_cover = on_hand / max(d28/n28, 0.1)`. S6 overstock and low-cover adjustments need 7 days of history.
+   - `decision_type` is HOLD for INITIAL.
+   - MIN_ORDER_QTY is coupon-only, since a markdown prices one unit on the shelf.
+3. **Primary reason:** two fixed precedence lists, one for price changes and one for holds (`docs/pricing_rules.md`).
+4. **No REJECTED decisions.** Escalations are always approved the same day (PLAN §2 limitation). REJECTED is allowed
+   but not generated, because a rejected decision would leave an older decision's expired markdowns on the shelf.
+5. **Markdown timing.** An active markdown is cancelled at a Monday 00:00Z, and markdowns run Monday to Sunday. Shelf
+   prices therefore never carry a cancelled or expired markdown, even between decisions. Orders are placed between
+   06:00 and 24:00Z, after the 06:00 decision.
+6. **Markdowns on orders.** `order_promotion` lists the day's markdowns on every order (`coupon_presented = false`),
+   so `Σ APPLIED discount_amount = gross − net`.
+7. **Considered observations.** Only the latest observation per competitor, plus older ones still inside 72 h, count
+   as "considered". This keeps `price_decision_observation` bounded (305k rows at full scale).
+8. **Realism bands, starter:**
+   - In band: stockouts 4.5%, SKU-days under a markdown 17.2%, coupon rejections 21.9%, margin 39.8%, list changes
+     1.9 per SKU-month, Pareto 70%.
+   - **Outside:** the stale observation share is 21% (band 5–15%), because GAMMA observes weekly and the freshness
+     window is 72 h. Not changed: it needs a choice between the PLAN cadence and the PLAN band.
+9. **Volumes:** full-scale volumes differ from the PLAN §7.4 estimates, including customer_order 941,692 vs ~700,000
+   and about 764 MB of CSV vs ~400 MB. `price_decision` is 300 MB, mostly explanation JSON. The full run takes about
+   1 minute and also completes with `-Xmx768m`. PLAN §7.4 is left for the P8 full run to correct with manifest
+   numbers.
+10. **Starter guardrail conflicts.** Starter has exactly 1 GUARDRAIL_CONFLICT_ESCALATED decision (a supplier shock on
+    01-03-2026), so the "non-zero" check depends on the fixed seed. Full scale has 740.
+11. **`PricePointRounderTest`** was added here as the earlier history entry said it would be. `DemandSignalCalculatorTest`
+    (PLAN §12) was added too.
 
-**Verification:** _Pending._
+**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1, 4 and 8
+above.
+
+**Verification:**
+- `./mvnw clean verify` → BUILD SUCCESS, 287 tests (280 unit + 7 integration), 0 failures.
+- All 20 golden scenarios matched their hand-computed values on the first run; each scenario's `notes` field shows the
+  arithmetic. One hand-written expectation in `PricePointRounderTest` was wrong: 1234 is a tie between 1229 and 1239,
+  and the rule rounds ties up. The test was corrected, not the code.
+- `java -jar target/pricing-sim.jar generate --scale starter --out out/starter` → exit 0, 16 CSVs, and all 11,525
+  price_history rows have a `source_decision_id`. Printed: COMPETITOR_DATA_STALE decisions 109,
+  GUARDRAIL_CONFLICT_ESCALATED 1, stockout days 518, REJECTED coupons 264.
+- A second generation into `out/starter2`, then `diff -r out/starter out/starter2` → no output.
+- Full scale (`--scale full`, `-Xmx2g`): exit 0 in about 63 s. 147,138 decisions, 941,692 orders,
+  COMPETITOR_DATA_STALE 9,369, GUARDRAIL_CONFLICT_ESCALATED 740, stockouts 4.89%, REJECTED coupons 12,532.

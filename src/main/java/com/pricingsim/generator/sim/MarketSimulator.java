@@ -12,7 +12,6 @@ import java.util.TreeMap;
 
 import com.pricingsim.domain.enums.ReasonCode;
 import com.pricingsim.domain.id.IdFactory;
-import com.pricingsim.domain.model.CompetitorObservation;
 import com.pricingsim.domain.model.CostRecord;
 import com.pricingsim.domain.model.InventorySnapshot;
 import com.pricingsim.domain.model.PriceHistory;
@@ -27,14 +26,15 @@ import com.pricingsim.io.TableRegistry;
  * <ol>
  *   <li>receive replenishment arrivals ({@code receipts_units});</li>
  *   <li>get the day's price from the {@link PriceSetter} and write {@code price_history};</li>
- *   <li>draw demand (Poisson), sell {@code min(demand, available)}, the rest is lost sales;</li>
+ *   <li>draw demand (Poisson) at the shelf price, sell {@code min(demand, available)}, the rest is lost sales;</li>
+ *   <li>split the units sold into orders, resolving coupons ({@link OrderGenerator});</li>
  *   <li>shrinkage of −1 unit with probability 0.5%;</li>
  *   <li>(s, S) replenishment;</li>
  *   <li>derive {@code days_of_cover}, {@code stockout_flag}, {@code lost_sales_units} and write
  *       {@code inventory_snapshot}.</li>
  * </ol>
- * {@code units_sold} is a daily total for now; the order generator will split it into {@code customer_order} rows.
- * Random draws come from per-SKU streams ({@code sku-latent}, {@code demand}, {@code operations}), so a change to one
+ * Random draws come from per-SKU streams ({@code sku-latent}, {@code demand}, {@code operations}, {@code decision},
+ * {@code orders}), so a change to one
  * SKU never shifts another SKU's draws.
  */
 public final class MarketSimulator {
@@ -45,10 +45,12 @@ public final class MarketSimulator {
 
     private final GenerationContext ctx;
     private final PriceSetter priceSetter;
+    private final OrderGenerator orderGenerator;
 
-    public MarketSimulator(GenerationContext ctx, PriceSetter priceSetter) {
+    public MarketSimulator(GenerationContext ctx, PriceSetter priceSetter, OrderGenerator orderGenerator) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.priceSetter = Objects.requireNonNull(priceSetter, "priceSetter");
+        this.orderGenerator = Objects.requireNonNull(orderGenerator, "orderGenerator");
     }
 
     /** Totals over the simulated SKU-days. */
@@ -61,11 +63,8 @@ public final class MarketSimulator {
      *
      * @param products     products sorted by {@code sku_id}
      * @param costRecords  cost records per SKU
-     * @param observations competitor observations per SKU (used by the pricing engine; unused by the initial setter)
      */
-    public Stats run(List<Product> products, Map<String, List<CostRecord>> costRecords,
-                     Map<String, List<CompetitorObservation>> observations, RowSink sink) {
-        Objects.requireNonNull(observations, "observations");
+    public Stats run(List<Product> products, Map<String, List<CostRecord>> costRecords, RowSink sink) {
         Map<String, SkuState> states = new TreeMap<>();
         Map<String, Map<YearMonth, CostRecord>> costByMonth = new TreeMap<>();
         List<Product> simulated = new ArrayList<>();
@@ -94,7 +93,9 @@ public final class MarketSimulator {
                 }
                 simulateDay(states.get(product.skuId()), day, cost, sink, counters);
             }
+            priceSetter.endOfDay(day);
         }
+        priceSetter.finish();
         return counters.toStats();
     }
 
@@ -102,7 +103,8 @@ public final class MarketSimulator {
         DemandModel.Latent latent = DemandModel.drawLatent(product, ctx.streams().of("sku-latent", product.skuId()));
         ReplenishmentPolicy.Levels levels = ReplenishmentPolicy.levelsFor(latent);
         return new SkuState(product, latent, levels, ctx.streams().of("demand", product.skuId()),
-                ctx.streams().of("operations", product.skuId()));
+                ctx.streams().of("operations", product.skuId()), ctx.streams().of("decision", product.skuId()),
+                ctx.streams().of("orders", product.skuId()));
     }
 
     private void simulateDay(SkuState state, LocalDate day, CostRecord cost, RowSink sink, Counters counters) {
@@ -129,12 +131,13 @@ public final class MarketSimulator {
 
         // 2. Price for the day.
         BigDecimal previousListPrice = state.listPrice();
-        PriceSetter.DailyPrice price = priceSetter.priceFor(state, day, cost);
+        PriceSetter.DailyPrice price = priceSetter.priceFor(state, day, cost, opening + receipts);
         boolean changed = previousListPrice == null || price.listPrice().compareTo(previousListPrice) != 0;
         ReasonCode changeReason = changed ? price.changeReason() : ReasonCode.NO_CHANGE;
-        sink.accept(TableRegistry.PRICE_HISTORY, new PriceHistory(
-                IdFactory.priceHistory(product.skuId(), day), product.skuId(), day, price.listPrice(),
-                price.shelfPrice(), previousListPrice, changeReason, price.sourceDecisionId(), cost.costRecordId()));
+        String priceHistoryId = IdFactory.priceHistory(product.skuId(), day);
+        sink.accept(TableRegistry.PRICE_HISTORY, new PriceHistory(priceHistoryId, product.skuId(), day,
+                price.listPrice(), price.shelfPrice(), previousListPrice, changeReason, price.sourceDecisionId(),
+                cost.costRecordId()));
         state.setListPrice(price.listPrice());
 
         // 3. Demand and sales.
@@ -147,6 +150,7 @@ public final class MarketSimulator {
         boolean shrink = Distributions.bernoulli(state.operationsRandom(), SHRINKAGE_PROBABILITY);
         int adjustment = shrink && available - sold >= 1 ? -1 : 0;
         int closing = available - sold + adjustment;
+        orderGenerator.generate(state, day, sold, price, cost, priceHistoryId);
 
         // 5. Replenishment.
         boolean orderingAllowed = product.discontinuedDate() == null || day.isBefore(product.discontinuedDate()

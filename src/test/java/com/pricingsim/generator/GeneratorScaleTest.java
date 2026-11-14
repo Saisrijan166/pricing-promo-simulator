@@ -15,7 +15,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.pricingsim.config.ScaleProfile;
+import com.pricingsim.domain.enums.DecisionTrigger;
 import com.pricingsim.domain.model.CompetitorObservation;
+import com.pricingsim.domain.model.PriceDecision;
+import com.pricingsim.domain.model.Promotion;
+import com.pricingsim.domain.model.PromotionProduct;
+import com.pricingsim.domain.model.PromotionRule;
+import com.pricingsim.domain.model.PromotionStatusEvent;
 import com.pricingsim.domain.model.CostRecord;
 import com.pricingsim.domain.model.InventorySnapshot;
 import com.pricingsim.domain.model.PriceHistory;
@@ -50,12 +56,61 @@ class GeneratorScaleTest {
         assertThat(TestSettings.properties().scale("full")).isEqualTo(new ScaleProfile(5000, 180, 2000, jan1, 50, 3));
         assertThat(TestSettings.properties().scale("starter").endDate()).isEqualTo(LocalDate.of(2026, 3, 1));
         assertThat(TestSettings.properties().scale("full").endDate()).isEqualTo(LocalDate.of(2026, 6, 29));
+        // pricing.policy.* in application.yml equals the PLAN.md §8 defaults.
+        assertThat(TestSettings.policy()).isEqualTo(com.pricingsim.pricing.PricingPolicy.defaults());
     }
 
     @Test
-    void writesExactlyTheMasterAndSimulationTables() {
-        assertThat(result.rowCounts().keySet()).containsExactlyInAnyOrder("product", "product_status_event",
-                "cost_record", "competitor_observation", "price_history", "inventory_snapshot");
+    void writesAllSixteenDataTables() {
+        assertThat(result.rowCounts().keySet())
+                .containsExactlyElementsOf(TableRegistry.loadOrder().stream().map(t -> t.name()).toList())
+                .hasSize(16);
+        assertThat(result.rowCounts()).allSatisfy((table, rows) -> assertThat(rows).as(table).isPositive());
+    }
+
+    @Test
+    void promotionsFollowTheProfile() {
+        List<Promotion> promotions = sink.rows(TableRegistry.PROMOTION);
+        assertThat(promotions).hasSize(settings.profile().promotions());
+        // 60% markdowns / 40% coupons, apportioned exactly: 5 / 3 of 8.
+        assertThat(promotions.stream().filter(p -> p.couponCode() == null).count()).isEqualTo(5);
+        Map<String, Long> rules = sink.<PromotionRule>rows(TableRegistry.PROMOTION_RULE).stream()
+                .collect(Collectors.groupingBy(PromotionRule::promotionId, TreeMap::new, Collectors.counting()));
+        Map<String, Long> skus = sink.<PromotionProduct>rows(TableRegistry.PROMOTION_PRODUCT).stream()
+                .collect(Collectors.groupingBy(PromotionProduct::promotionId, TreeMap::new, Collectors.counting()));
+        for (Promotion p : promotions) {
+            assertThat(rules.get(p.promotionId())).as(p.promotionId()).isGreaterThanOrEqualTo(2L);
+            assertThat(skus.get(p.promotionId())).as(p.promotionId()).isPositive();
+            if (p.couponCode() == null) {
+                assertThat(p.startDate().getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+                assertThat(p.endDate().getDayOfWeek()).isEqualTo(java.time.DayOfWeek.SUNDAY);
+                assertThat(p.channel()).isEqualTo(com.pricingsim.domain.enums.Channel.ALL);
+            }
+            assertThat(p.createdAt()).isBefore(p.startDate().atStartOfDay(ZoneOffset.UTC).toInstant());
+        }
+        // PROMO IDs follow (start_date, promo_type).
+        List<Promotion> byId = promotions.stream().sorted(java.util.Comparator.comparing(Promotion::promotionId)).toList();
+        assertThat(byId).isSortedAccordingTo(java.util.Comparator.comparing(Promotion::startDate)
+                .thenComparing(Promotion::promoType));
+        // Final status = last status event.
+        Map<String, PromotionStatusEvent> last = new TreeMap<>();
+        sink.<PromotionStatusEvent>rows(TableRegistry.PROMOTION_STATUS_EVENT).stream()
+                .sorted(java.util.Comparator.comparing(PromotionStatusEvent::eventTs))
+                .forEach(e -> last.put(e.promotionId(), e));
+        assertThat(promotions).allSatisfy(p -> assertThat(last.get(p.promotionId()).toStatus()).isEqualTo(p.status()));
+    }
+
+    @Test
+    void oneInitialDecisionPerSkuOnItsFirstActiveDay() {
+        List<PriceDecision> decisions = sink.rows(TableRegistry.PRICE_DECISION);
+        Map<String, PriceDecision> initial = decisions.stream().filter(d -> d.trigger() == DecisionTrigger.INITIAL)
+                .collect(Collectors.toMap(PriceDecision::skuId, d -> d, (a, b) -> a, TreeMap::new));
+        assertThat(initial).hasSize(products.size());
+        for (Product p : products) {
+            assertThat(initial.get(p.skuId()).effectiveDate()).isEqualTo(activeFrom(p));
+        }
+        assertThat(decisions).allSatisfy(d -> assertThat(d.effectiveDate().getDayOfWeek() == java.time.DayOfWeek.MONDAY
+                || d.trigger() != DecisionTrigger.WEEKLY_REVIEW).isTrue());
     }
 
     @Test

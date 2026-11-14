@@ -7,13 +7,14 @@ import java.util.List;
 import com.pricingsim.config.GeneratorProperties;
 import com.pricingsim.config.ScaleProfile;
 import com.pricingsim.generator.GenerationSettings;
+import com.pricingsim.pricing.PricingPolicy;
 
 import picocli.CommandLine.Option;
 
 /**
  * Shared scale flags (PLAN.md §3 cli/ScaleOptions). A flag that is not given falls back to the named profile in
- * {@code application.yml}, then to {@code generator.*} defaults. Flags that only later pipeline steps use (for example
- * {@code --promos} and {@code --anomalies-per-type}) are still accepted and recorded in the run settings.
+ * {@code application.yml}, then to {@code generator.*} defaults. {@code --anomalies-per-type} is only used by anomaly
+ * injection (a later pipeline step); it is accepted now and recorded in the run settings.
  */
 public class ScaleOptions {
 
@@ -50,12 +51,13 @@ public class ScaleOptions {
     }
 
     /** Settings for the generator: the named profile with every given flag applied. */
-    public GenerationSettings toSettings(GeneratorProperties properties, List<String> commandLine) {
+    public GenerationSettings toSettings(GeneratorProperties properties, PricingPolicy policy,
+                                         List<String> commandLine) {
         String name = scaleName(properties);
         ScaleProfile profile = properties.scale(name)
                 .withOverrides(skus, days, promos, startDate, anomaliesPerType);
         long effectiveSeed = seed != null ? seed : properties.seed();
-        return new GenerationSettings(effectiveSeed, name, profile, properties.referenceTs(), commandLine);
+        return new GenerationSettings(effectiveSeed, name, profile, properties.referenceTs(), policy, commandLine);
     }
 
     /** The output directory: {@code --out}, or {@code out/<scale>}. */

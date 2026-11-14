@@ -545,9 +545,9 @@ Plugins: `maven-surefire` and `maven-failsafe` (`*IT` classes).
 | floor_price / ceiling_price | NUMERIC(12,2) | R | INR | | recomputable (§8) |
 | competitor_ref_price | NUMERIC(12,2) | O | INR | | median of USED observations |
 | competitor_fresh_count / competitor_stale_count | INT | R | count | | = bridge counts |
-| on_hand_units | INT | R | units | | = previous day closing |
+| on_hand_units | INT | R | units | | = previous day closing + receipts delivered before trading (opening + receipts) |
 | demand_7d_units / demand_28d_units | INT | R | units | | = Σ units_sold in prior windows |
-| velocity_ratio | NUMERIC(8,4) | R | ratio | | (d7/7)/(d28/28) |
+| velocity_ratio | NUMERIC(8,4) | R | ratio | | (d7/n7)/(d28/n28), n = days of history in the window; 1 without sales |
 | days_of_cover | NUMERIC(8,2) | R | days | | |
 | target_price | NUMERIC(12,2) | R | INR | | |
 | final_list_price | NUMERIC(12,2) | R | INR | | in [floor, ceiling] (business rule) |
@@ -650,7 +650,7 @@ Starter and full use the **same code path**. Only the `ScaleProfile` differs.
      - 30% EXCLUSIVE.
      - 25% have an EXCLUDES_PROMOTION pair with an overlapping promotion that shares SKUs. This deliberately creates **conflicting coupons**.
      - Every promotion gets MAX_STACK_COUNT (2 or 3) and MAX_COMBINED_DISCOUNT_PCT (0.30–0.45).
-     - 15% get MIN_ORDER_QTY of 2.
+     - 15% of coupons get MIN_ORDER_QTY of 2. (A markdown prices a single unit on the shelf, so the rule is coupon-only.)
    - 3% are cancelled before they start and 1% are cancelled while active.
 4. **CompetitorObservation.** Observations exist only for tracked SKUs, and each competitor covers 40–80% of them.
    - The competitor price is a weekly random walk (σ = 1.5%) anchored at mrp × U(0.80, 0.98).

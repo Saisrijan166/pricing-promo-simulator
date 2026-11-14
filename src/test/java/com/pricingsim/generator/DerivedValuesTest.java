@@ -16,15 +16,26 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import com.pricingsim.domain.enums.ApplicationStatus;
 import com.pricingsim.domain.enums.CostChangeReason;
+import com.pricingsim.domain.enums.DecisionStatus;
+import com.pricingsim.domain.enums.DecisionTrigger;
+import com.pricingsim.domain.enums.ObservationUsage;
+import com.pricingsim.domain.enums.OrderStatus;
 import com.pricingsim.domain.enums.ReasonCode;
 import com.pricingsim.domain.id.IdFactory;
 import com.pricingsim.domain.model.CostRecord;
+import com.pricingsim.domain.model.CustomerOrder;
+import com.pricingsim.domain.model.OrderPromotion;
+import com.pricingsim.domain.model.PriceDecision;
+import com.pricingsim.domain.model.PriceDecisionObservation;
+import com.pricingsim.domain.model.PriceDecisionStatusEvent;
 import com.pricingsim.domain.model.InventorySnapshot;
 import com.pricingsim.domain.model.PriceHistory;
 import com.pricingsim.domain.model.Product;
 import com.pricingsim.generator.sink.InMemoryRowSink;
 import com.pricingsim.io.TableRegistry;
+import com.pricingsim.pricing.GuardrailCalculator;
 import com.pricingsim.pricing.PricePointRounder;
 
 /**
@@ -38,6 +49,11 @@ class DerivedValuesTest {
     private static Map<String, List<CostRecord>> costsBySku;
     private static Map<String, List<PriceHistory>> pricesBySku;
     private static Map<String, List<InventorySnapshot>> inventoryBySku;
+    private static Map<String, PriceDecision> decisions;
+    private static List<CustomerOrder> orders;
+    private static Map<String, List<OrderPromotion>> orderPromotions;
+    private static List<PriceDecisionObservation> decisionObservations;
+    private static List<PriceDecisionStatusEvent> decisionEvents;
 
     @BeforeAll
     static void generateStarter() {
@@ -50,6 +66,12 @@ class DerivedValuesTest {
         costsBySku = groupBySku(sink.rows(TableRegistry.COST_RECORD), CostRecord::skuId);
         pricesBySku = groupBySku(sink.rows(TableRegistry.PRICE_HISTORY), PriceHistory::skuId);
         inventoryBySku = groupBySku(sink.rows(TableRegistry.INVENTORY_SNAPSHOT), InventorySnapshot::skuId);
+        decisions = sink.<PriceDecision>rows(TableRegistry.PRICE_DECISION).stream()
+                .collect(Collectors.toMap(PriceDecision::decisionId, d -> d, (a, b) -> a, TreeMap::new));
+        orders = sink.rows(TableRegistry.CUSTOMER_ORDER);
+        orderPromotions = groupBySku(sink.rows(TableRegistry.ORDER_PROMOTION), OrderPromotion::orderId);
+        decisionObservations = sink.rows(TableRegistry.PRICE_DECISION_OBSERVATION);
+        decisionEvents = sink.rows(TableRegistry.PRICE_DECISION_STATUS_EVENT);
     }
 
     // --- product ----------------------------------------------------------------------------------------------------
@@ -258,6 +280,174 @@ class DerivedValuesTest {
                 .filter(InventorySnapshot::stockoutFlag).count();
         // PLAN.md §7.5 realism band: 2–6% of SKU-days.
         assertThat(stockouts / (double) skuDays).isBetween(0.02, 0.06);
+    }
+
+    // --- price_decision ---------------------------------------------------------------------------------------------
+
+    @Test
+    void everyPriceHistoryRowMatchesItsDecision() {
+        pricesBySku.forEach((sku, prices) -> {
+            for (PriceHistory ph : prices) {
+                assertThat(ph.sourceDecisionId()).as(ph.priceHistoryId()).isNotNull();
+                PriceDecision d = decisions.get(ph.sourceDecisionId());
+                assertThat(d).as(ph.priceHistoryId()).isNotNull();
+                assertThat(d.skuId()).isEqualTo(sku);
+                assertThat(d.effectiveDate()).isBeforeOrEqualTo(ph.priceDate());
+                assertThat(ph.listPrice()).as(ph.priceHistoryId()).isEqualByComparingTo(d.finalListPrice());
+                assertThat(ph.shelfPrice()).as(ph.priceHistoryId()).isEqualByComparingTo(d.expectedNetPrice());
+            }
+        });
+        // The decision in effect is the latest one on or before the date.
+        Map<String, List<PriceDecision>> bySku = groupBySku(new ArrayList<>(decisions.values()), PriceDecision::skuId);
+        pricesBySku.forEach((sku, prices) -> {
+            for (PriceHistory ph : prices) {
+                PriceDecision latest = bySku.get(sku).stream().filter(d -> !d.effectiveDate().isAfter(ph.priceDate()))
+                        .reduce((a, b) -> b).orElseThrow();
+                assertThat(ph.sourceDecisionId()).as(ph.priceHistoryId()).isEqualTo(latest.decisionId());
+            }
+        });
+    }
+
+    @Test
+    void cleanRunHasNoPriceBelowFloorOrAboveMrp() {
+        pricesBySku.forEach((sku, prices) -> {
+            Product p = products.get(sku);
+            for (PriceHistory ph : prices) {
+                PriceDecision d = decisions.get(ph.sourceDecisionId());
+                CostRecord decisionCost = costsBySku.get(sku).stream()
+                        .filter(c -> c.costRecordId().equals(d.costRecordId())).findFirst().orElseThrow();
+                BigDecimal floor = GuardrailCalculator.floor(decisionCost.landedCost(), p.minMarginPct(), p.mapPrice());
+                assertThat(d.floorPrice()).as(d.decisionId()).isEqualByComparingTo(floor);
+                assertThat(ph.listPrice()).as(ph.priceHistoryId() + " below floor").isGreaterThanOrEqualTo(floor);
+                if (!d.reasonCodeList().contains(ReasonCode.GUARDRAIL_CONFLICT_ESCALATED)) {
+                    // PLAN.md §8 S3: only an escalated guardrail conflict (floor > MRP) prices above MRP, at the floor.
+                    assertThat(ph.listPrice()).as(ph.priceHistoryId() + " above MRP").isLessThanOrEqualTo(p.mrp());
+                } else {
+                    assertThat(ph.listPrice()).isEqualByComparingTo(floor);
+                    assertThat(d.status()).isIn(DecisionStatus.APPLIED, DecisionStatus.SUPERSEDED);
+                }
+            }
+        });
+    }
+
+    @Test
+    void decisionStoredInputsReconcile() {
+        Map<String, Long> fresh = decisionObservations.stream().filter(o -> o.usage() == ObservationUsage.USED)
+                .collect(Collectors.groupingBy(PriceDecisionObservation::decisionId, TreeMap::new, Collectors.counting()));
+        Map<String, Long> stale = decisionObservations.stream()
+                .filter(o -> o.usage() == ObservationUsage.EXCLUDED_STALE)
+                .collect(Collectors.groupingBy(PriceDecisionObservation::decisionId, TreeMap::new, Collectors.counting()));
+        Map<String, List<PriceDecisionStatusEvent>> events = groupBySku(decisionEvents.stream()
+                .sorted(java.util.Comparator.comparing(PriceDecisionStatusEvent::eventId)).toList(),
+                PriceDecisionStatusEvent::decisionId);
+        Map<String, Long> initials = new TreeMap<>();
+        for (PriceDecision d : decisions.values()) {
+            CostRecord cost = costsBySku.get(d.skuId()).stream()
+                    .filter(c -> c.costRecordId().equals(d.costRecordId())).findFirst().orElseThrow();
+            assertThat(cost.costMonth()).as(d.decisionId()).isEqualTo(YearMonth.from(d.effectiveDate()).toString());
+            assertThat(d.landedCost()).isEqualByComparingTo(cost.landedCost());
+            assertThat(d.ceilingPrice()).isEqualByComparingTo(products.get(d.skuId()).mrp());
+            assertThat((long) d.competitorFreshCount()).as(d.decisionId()).isEqualTo(fresh.getOrDefault(d.decisionId(), 0L));
+            assertThat((long) d.competitorStaleCount()).as(d.decisionId()).isEqualTo(stale.getOrDefault(d.decisionId(), 0L));
+            assertThat(d.decisionTs()).isEqualTo(d.effectiveDate().atTime(6, 0).toInstant(ZoneOffset.UTC));
+            assertThat(d.trigger() == DecisionTrigger.INITIAL).isEqualTo(d.previousDecisionId() == null);
+            assertThat(d.reasonCodeList()).isNotEmpty().contains(d.primaryReasonCode());
+            assertThat(d.ruleVersion()).isEqualTo("pricing-rules-v1");
+            // Final status = last event; event IDs follow (event_ts, decision_id).
+            List<PriceDecisionStatusEvent> ev = events.get(d.decisionId());
+            assertThat(ev.get(0).fromStatus()).isNull();
+            assertThat(ev.get(0).toStatus()).isEqualTo(DecisionStatus.PROPOSED);
+            assertThat(ev.get(ev.size() - 1).toStatus()).as(d.decisionId()).isEqualTo(d.status());
+            for (int i = 1; i < ev.size(); i++) {
+                assertThat(ev.get(i).fromStatus()).isEqualTo(ev.get(i - 1).toStatus());
+                assertThat(ev.get(i).eventTs()).isAfter(ev.get(i - 1).eventTs());
+            }
+            if (d.trigger() == DecisionTrigger.INITIAL) {
+                initials.merge(d.skuId(), 1L, Long::sum);
+            }
+            if (d.previousDecisionId() != null) {
+                assertThat(decisions.get(d.previousDecisionId()).status()).isEqualTo(DecisionStatus.SUPERSEDED);
+            }
+        }
+        // Exactly one INITIAL decision per SKU, and the last decision of each SKU stays APPLIED.
+        assertThat(initials.keySet()).isEqualTo(products.keySet());
+        assertThat(initials.values()).containsOnly(1L);
+        long applied = decisions.values().stream().filter(d -> d.status() == DecisionStatus.APPLIED).count();
+        assertThat(applied).isEqualTo(products.size());
+        List<String> eventIds = decisionEvents.stream()
+                .sorted(java.util.Comparator.comparing(PriceDecisionStatusEvent::eventTs)
+                        .thenComparing(PriceDecisionStatusEvent::decisionId))
+                .map(PriceDecisionStatusEvent::eventId).toList();
+        assertThat(eventIds).isSorted();
+    }
+
+    // --- customer_order ---------------------------------------------------------------------------------------------
+
+    @Test
+    void orderTotalsReconcile() {
+        Map<String, PriceHistory> prc = new TreeMap<>();
+        pricesBySku.values().forEach(l -> l.forEach(ph -> prc.put(ph.priceHistoryId(), ph)));
+        assertThat(orders).isNotEmpty();
+        for (CustomerOrder o : orders) {
+            BigDecimal qty = BigDecimal.valueOf(o.quantity());
+            PriceHistory ph = prc.get(o.priceHistoryId());
+            assertThat(ph).as(o.orderId()).isNotNull();
+            assertThat(ph.skuId()).isEqualTo(o.skuId());
+            assertThat(ph.priceDate()).isEqualTo(o.orderDate());
+            assertThat(o.orderTs().atZone(ZoneOffset.UTC).toLocalDate()).isEqualTo(o.orderDate());
+            assertThat(o.costRecordId()).isEqualTo(ph.costRecordId());
+            assertThat(o.quantity()).isBetween(1, 10);
+            assertThat(o.unitListPrice()).isEqualByComparingTo(ph.listPrice());
+            assertThat(o.grossAmount()).as(o.orderId()).isEqualByComparingTo(qty.multiply(o.unitListPrice()));
+            List<OrderPromotion> promos = orderPromotions.getOrDefault(o.orderId(), List.of());
+            BigDecimal applied = promos.stream().filter(p -> p.applicationStatus() == ApplicationStatus.APPLIED)
+                    .map(OrderPromotion::discountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(o.discountAmount()).as(o.orderId()).isEqualByComparingTo(applied);
+            assertThat(o.netAmount()).as(o.orderId()).isEqualByComparingTo(o.grossAmount().subtract(o.discountAmount()))
+                    .isPositive();
+            CostRecord cost = costsBySku.get(o.skuId()).stream()
+                    .filter(c -> c.costRecordId().equals(o.costRecordId())).findFirst().orElseThrow();
+            assertThat(o.unitLandedCost()).isEqualByComparingTo(cost.landedCost());
+            assertThat(o.grossMarginAmount()).as(o.orderId())
+                    .isEqualByComparingTo(o.netAmount().subtract(qty.multiply(o.unitLandedCost())));
+            // Markdown rows (not presented by the customer) add up to qty × (list − shelf).
+            BigDecimal markdown = promos.stream().filter(p -> !p.couponPresented())
+                    .map(OrderPromotion::discountAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(markdown).as(o.orderId())
+                    .isEqualByComparingTo(qty.multiply(ph.listPrice().subtract(ph.shelfPrice())));
+            for (OrderPromotion p : promos) {
+                boolean rejected = p.applicationStatus() == ApplicationStatus.REJECTED;
+                assertThat(p.rejectionReason() != null).as(o.orderId()).isEqualTo(rejected);
+                if (rejected) {
+                    assertThat(p.discountAmount()).isEqualByComparingTo("0.00");
+                    assertThat(p.couponPresented()).isTrue();
+                }
+            }
+            assertThat(promos).extracting(OrderPromotion::sequenceNo).doesNotHaveDuplicates()
+                    .containsExactlyInAnyOrderElementsOf(java.util.stream.IntStream.rangeClosed(1, promos.size()).boxed().toList());
+        }
+    }
+
+    @Test
+    void unitsSoldEqualsFulfilledOrderQuantity() {
+        Map<String, Integer> fulfilled = new TreeMap<>();
+        for (CustomerOrder o : orders) {
+            if (o.orderStatus() == OrderStatus.FULFILLED) {
+                fulfilled.merge(IdFactory.inventorySnapshot(o.skuId(), o.orderDate()), o.quantity(), Integer::sum);
+            }
+        }
+        forEachSnapshot(s -> assertThat(fulfilled.getOrDefault(s.inventorySnapshotId(), 0)).as(s.inventorySnapshotId())
+                .isEqualTo(s.unitsSold()));
+        long cancelled = orders.stream().filter(o -> o.orderStatus() == OrderStatus.CANCELLED).count();
+        assertThat(cancelled / (double) orders.size()).isBetween(0.01, 0.03);
+    }
+
+    @Test
+    void noOrdersOutsideTheActiveWindow() {
+        for (CustomerOrder o : orders) {
+            Product p = products.get(o.skuId());
+            assertThat(o.orderDate()).as(o.orderId()).isBetween(activeFrom(p), activeTo(p));
+        }
     }
 
     // --- helpers ----------------------------------------------------------------------------------------------------
