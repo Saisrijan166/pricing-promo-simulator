@@ -15,6 +15,7 @@ the migrated schema, so this document, the DDL and the code stay in step.
 | **Percentages** | Decimal fractions, `NUMERIC(6,4)`. `0.2500` = 25%. |
 | **Dates / timestamps** | `DATE`, `TIMESTAMP WITH TIME ZONE` (TIMESTAMPTZ), always UTC. Business date = UTC date. In files: ISO-8601 (`2026-01-01`, `2026-01-01T06:00:00Z`). |
 | **Simulation window** | 2026-01-01 to 2026-06-29 inclusive (180 days) at full scale. |
+| **Active window** | A product is active from `max(launch_date, window start)` to `min(discontinued_date − 1, window end)`, both inclusive. The discontinuation day itself is not active, because the DISCONTINUED event is at 00:00Z that day. `price_history` and `inventory_snapshot` have exactly one row per active day. |
 | **Margin basis** | `margin_pct = (net_unit_price − landed_cost) / net_unit_price`. Net is after all applied discounts. `landed_cost = unit_cost + freight_cost` from the cost record effective on that date. One basis everywhere. |
 
 ### What the database enforces vs. what the validator enforces
@@ -116,6 +117,11 @@ Freshness: an observation is *fresh* at a decision only if `decision_ts − sour
 | lost_sales_units | INTEGER | R | units | | = demand − sold |
 | stockout_flag | BOOLEAN | R | | | = (closing = 0 OR lost_sales > 0) |
 | days_of_cover | NUMERIC(8,2) | R | days | | = closing / max(avg 28-day units sold, 0.1) |
+
+`days_of_cover` uses the SKU's last 28 snapshot rows up to and including this row (fewer at the start of its
+history). The average is their total `units_sold` divided by the number of rows. The quotient is rounded HALF_UP to
+2 dp, computed exactly as `closing × rows / Σ units_sold`, or as `closing / 0.1` when the average is ≤ 0.1. A
+recomputation that first rounds the average can differ by 0.01.
 
 ### 1.6 `promotion` — master, effective-dated
 

@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import com.pricingsim.config.ScaleProfile;
 import com.pricingsim.domain.model.CompetitorObservation;
 import com.pricingsim.domain.model.CostRecord;
+import com.pricingsim.domain.model.InventorySnapshot;
+import com.pricingsim.domain.model.PriceHistory;
 import com.pricingsim.domain.model.Product;
 import com.pricingsim.domain.model.ProductStatusEvent;
 import com.pricingsim.generator.sink.InMemoryRowSink;
@@ -51,9 +53,9 @@ class GeneratorScaleTest {
     }
 
     @Test
-    void writesExactlyTheMasterTables() {
+    void writesExactlyTheMasterAndSimulationTables() {
         assertThat(result.rowCounts().keySet()).containsExactlyInAnyOrder("product", "product_status_event",
-                "cost_record", "competitor_observation");
+                "cost_record", "competitor_observation", "price_history", "inventory_snapshot");
     }
 
     @Test
@@ -99,6 +101,27 @@ class GeneratorScaleTest {
         assertThat(costs).hasSize((int) expected);
         // Tiny is 01-01 → 14-01: one month per SKU.
         assertThat(costs).extracting(CostRecord::costMonth).containsOnly("2026-01");
+    }
+
+    @Test
+    void everySkuHasExactlyItsActiveDaysOfPriceAndInventory() {
+        long expected = products.stream().mapToLong(p -> ChronoUnit.DAYS.between(activeFrom(p), activeTo(p)) + 1).sum();
+        List<PriceHistory> prices = sink.rows(TableRegistry.PRICE_HISTORY);
+        List<InventorySnapshot> inventory = sink.rows(TableRegistry.INVENTORY_SNAPSHOT);
+        assertThat(prices).hasSize((int) expected);
+        assertThat(inventory).hasSize((int) expected);
+        assertThat(result.simulation().skuDays()).isEqualTo(expected);
+
+        Map<String, List<LocalDate>> priceDays = prices.stream().collect(Collectors.groupingBy(PriceHistory::skuId,
+                TreeMap::new, Collectors.mapping(PriceHistory::priceDate, Collectors.toList())));
+        Map<String, List<LocalDate>> stockDays = inventory.stream().collect(Collectors.groupingBy(
+                InventorySnapshot::skuId, TreeMap::new,
+                Collectors.mapping(InventorySnapshot::snapshotDate, Collectors.toList())));
+        for (Product p : products) {
+            List<LocalDate> days = activeFrom(p).datesUntil(activeTo(p).plusDays(1)).toList();
+            assertThat(priceDays.get(p.skuId())).as(p.skuId()).containsExactlyElementsOf(days);
+            assertThat(stockDays.get(p.skuId())).as(p.skuId()).containsExactlyElementsOf(days);
+        }
     }
 
     @Test

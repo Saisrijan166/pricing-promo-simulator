@@ -215,8 +215,59 @@ Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 step 8,
 
 This is `BUILD_PROMPTS.md` Prompt 2, unchanged.
 
-**What AI produced:** _In progress. Completed in the last commit of this prompt (PLAN §16 step 9)._
+**What AI produced:** Two commits (PLAN §16 steps 8 and 9):
+- `generator/rng`: `RandomStreams` (`java.util.Random` seeded from the first 8 bytes of SHA-256(`seed|stream|key`)) and
+  `Distributions` (uniform, Bernoulli, Box–Muller normal, lognormal, exponential, chunked Knuth Poisson, truncated
+  normal, Beta-like, weighted choice, Fisher–Yates shuffle, largest-remainder apportioning; `StrictMath` only).
+- `config`: `GeneratorProperties` (`generator.*`: seed 20261022, default scale, fixed `reference-ts`, scales) and
+  `ScaleProfile`. The tiny, starter and full profiles from PLAN §7.1 are in `application.yml`.
+- `cli`: `PricingSimCommand`, `PicocliRunner` (Spring-aware picocli factory, exit code passed to the shell), the
+  `ScaleOptions` mixin with all 8 flags, and `GenerateCommand` (offline profile, writes `<out>/csv/<table>.csv`).
+- `generator/master`: `ProductGenerator` (+ `product_status_event`), `CostRecordGenerator`,
+  `CompetitorObservationGenerator` and `CategoryCatalog` (fictional brands, per-category price, margin and markup bands).
+- `generator/sim`: `MarketSimulator` (day loop), `SkuState`, `DemandModel`, `ReplenishmentPolicy` ((s, S), lead time
+  3–10 days, doubled for 5% "fragile supply" SKUs), the `PriceSetter` interface and the temporary `InitialPriceSetter`.
+- `generator/sink`: `RowSink`, `CsvRowSink` (formats each row on arrival, sorts by PK on close, fails on a duplicate
+  PK), `InMemoryRowSink`. `io/CsvSupport` implements the PLAN §11 CSV rules and reads files back into records.
+- Supporting classes: `DatasetGenerator` and `GenerationContext` (both listed in PLAN §3), `GenerationSettings` and
+  `Amounts` (exact double → `BigDecimal` rounding).
+- Tests: `RandomStreamsTest` (7), `DistributionsTest` (19), `GeneratorScaleTest` (8), `DerivedValuesTest` (11),
+  `GeneratorDeterminismTest` (3), and `GeneratorSourceRulesTest` (1), which fails if generator or pricing code uses
+  the clock, `Math.random`, non-strict `Math` or hash-ordered collections.
 
-**What I did with it:** _Pending._
+Decisions and deviations the AI flagged for review:
+1. `pricing/PricePointRounder` (PLAN §8 S9) was written now, because the initial price and MRPs need it. The next step
+   reuses it and adds `PricePointRounderTest`. The S2 floor is computed inside the temporary `InitialPriceSetter`
+   until `GuardrailCalculator` exists.
+2. `--promos` and `--anomalies-per-type` are accepted, applied to the run settings and printed. They are kept with
+   the command line in `GenerationSettings` for the manifest (PLAN §11, a later step). No extra file is written.
+3. Generation rates (92/5/3 lifecycle, 70/22/4/4 cost changes, cadences and so on) are named constants in the
+   generator classes, next to the PLAN §7.2 reference. `GeneratorProperties` binds only the seed, default scale,
+   reference timestamp and scales.
+4. Lifecycle and category mixes are apportioned exactly (largest remainder) and then shuffled, instead of drawn per SKU
+   (starter: 184 / 10 / 6). Match confidence is "Beta-like" as a mixture: 5% U(0.60, 0.80), 95% 0.80 + 0.20·max(U1, U2).
+5. A product is active from `max(launch, window start)` to `min(discontinued − 1, window end)`. `days_of_cover`
+   averages the SKU's last 28 snapshot rows (fewer at the start of its history). Both definitions were added to
+   `docs/data_dictionary.md`.
+6. A pre-window launch's `∅→ACTIVE` event carries its launch year (for example `PEV-2021-000001`), per PLAN §6 rule 2.
+   `docs/id_conventions.md` now says so.
+7. PLAN §7.4 estimated ~400,000 competitor observations, but the §7.2 cadence and coverage give ~535,000 (measured
+   534,705 at full scale). PLAN §7.4 was corrected in the first commit.
+8. `generate` deletes the `*.csv` files in `<out>/csv` first, so a re-run never leaves stale tables behind.
+9. Full scale was run once as a check: 24 s wall-clock and 1.4 GB peak RSS with `-Xmx2g` for these 6 tables. The
+   later tables (orders, decisions) add rows that `CsvRowSink` holds in memory until it sorts them, so memory needs
+   watching in the next step.
 
-**Verification:** _Pending._
+**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–9 above.
+
+**Verification:**
+- `./mvnw clean verify` → BUILD SUCCESS, 182 tests (175 unit + 7 integration), 0 failures.
+- With the Postgres container stopped (`docker compose stop`), `java -jar target/pricing-sim.jar generate --scale
+  starter --out out/starter` exits 0 and writes the 6 CSVs: product 200, product_status_event 213, cost_record 587
+  (cost months 2026-01, 2026-02, 2026-03), competitor_observation 7,143, price_history 11,525, inventory_snapshot
+  11,525 (60 days, 01-01-2026 to 01-03-2026).
+- Generating into `out/starter2`, then `diff -r out/starter out/starter2` → no output, exit 0.
+- Starter realism: stockout SKU-days 3.25% (PLAN §7.5 band 2–6%). Full scale: stockouts 3.20%, and the top 20% of
+  SKUs sell 66.8% of units (band 55–85%).
+- Flag overrides (`--skus --days --seed --start-date --promos --anomalies-per-type --out`) apply. An unknown scale,
+  `--skus 0` or an unknown option gives an error message and a non-zero exit.

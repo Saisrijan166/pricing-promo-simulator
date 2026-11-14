@@ -32,8 +32,8 @@ class GeneratorDeterminismTest {
         Path b = generate("starter", 20261022L, tmp.resolve("b"));
 
         List<String> files = fileNames(a);
-        assertThat(files).containsExactly("competitor_observation.csv", "cost_record.csv", "product.csv",
-                "product_status_event.csv");
+        assertThat(files).containsExactly("competitor_observation.csv", "cost_record.csv", "inventory_snapshot.csv",
+                "price_history.csv", "product.csv", "product_status_event.csv");
         assertThat(fileNames(b)).isEqualTo(files);
         for (String file : files) {
             assertThat(Files.mismatch(a.resolve(file), b.resolve(file))).as(file).isEqualTo(-1L);

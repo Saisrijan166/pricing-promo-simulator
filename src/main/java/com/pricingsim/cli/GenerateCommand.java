@@ -16,6 +16,7 @@ import com.pricingsim.config.GeneratorProperties;
 import com.pricingsim.config.ScaleProfile;
 import com.pricingsim.generator.DatasetGenerator;
 import com.pricingsim.generator.GenerationSettings;
+import com.pricingsim.generator.sim.MarketSimulator;
 import com.pricingsim.generator.sink.CsvRowSink;
 
 import picocli.CommandLine.Command;
@@ -79,6 +80,11 @@ public class GenerateCommand implements Callable<Integer> {
         for (Map.Entry<String, Long> e : result.rowCounts().entrySet()) {
             out.printf("%-26s %12d%n", e.getKey(), e.getValue());
         }
+        MarketSimulator.Stats s = result.simulation();
+        out.println();
+        out.printf(java.util.Locale.ROOT, "SKU-days %d, stockout days %d (%.2f%%), units sold %d, lost sales %d, replenishment orders %d%n",
+                s.skuDays(), s.stockoutDays(), s.skuDays() == 0 ? 0.0 : 100.0 * s.stockoutDays() / s.skuDays(),
+                s.unitsSold(), s.lostSalesUnits(), s.replenishmentOrders());
         out.printf("Wrote %s in %d ms%n", csvDir, elapsedMs);
         out.flush();
         return 0;
