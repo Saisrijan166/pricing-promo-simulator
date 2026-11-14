@@ -774,3 +774,17 @@ submitting.
   - the three SQL spot checks each return 0;
   - the curl examples (simulate, explain, exceptions, price history, reports) return HTTP 200;
   - the `-Dpricing.policy.freshness-hours=48` override is recorded in the manifest.
+
+**Verification (after the push):**
+- `git push origin main` (fast-forward `6574e1c..236ce85`); `origin/main` equals local `main`. The repository page
+  returns HTTP 200 without login.
+- `./scripts/fresh_clone_test.sh https://github.com/Saisrijan166/pricing-promo-simulator.git` on `236ce85`
+  → **FRESH-CLONE TEST PASSED** on the first attempt; no `fix:` commit was needed:
+  - clone;
+  - `.env` with port 55432 and its own Compose project;
+  - `./mvnw clean verify` (91 s);
+  - `./scripts/run_all.sh starter` (0 structural failures, 25 findings);
+  - `./scripts/repro_check.sh starter` (IDENTICAL / DIFFERENT);
+  - regenerated starter checksums equal `data/sample/checksums.sha256`;
+  - `sha256sum -c` passes inside `data/sample`.
+- Tag `v1.0.0` is placed on the commit that records this result (PROMPT_HISTORY.md only) and pushed.
