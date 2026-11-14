@@ -170,3 +170,53 @@ Decisions and deviations the AI flagged for review:
   plus `flyway_schema_history`. Postgres constraint counts match H2: 19 PK, 28 FK, 42 CHECK.
 - `java -jar target/pricing-sim.jar generate` with no reachable database → the `offline` profile starts and exits 0.
 - The 5 Mermaid diagrams in `docs/er_diagram.md` render without errors in mermaid-cli 11.
+
+---
+
+### #04 — 2026-11-14 08:53 UTC — Claude Code (Opus 5.5) — Phase P3 (first half) Seeded generators, simulator and CLI
+
+**Prompt (verbatim):**
+
+```text
+Read PLAN.md (§2, §6, §7, §11 CSV rules). Implement the first half of phase P3 on top of the existing domain, schema and TableRegistry.
+
+Deliverables:
+1. generator/rng: RandomStreams (java.util.Random seeded from SHA-256(seed|stream|key)) and Distributions (StrictMath only).
+   The generator must not use Instant.now(), Math.random or unordered HashMap/HashSet iteration.
+2. config: GeneratorProperties and ScaleProfile. Put the tiny/starter/full profiles from PLAN §7.1 in application.yml. Default seed 20261022.
+3. cli (picocli): PricingSimCommand, PicocliRunner and the ScaleOptions mixin
+   (--scale --seed --skus --days --promos --start-date --anomalies-per-type --out).
+   GenerateCommand runs with the offline profile and needs no database. Flags used only by later steps are accepted and recorded.
+4. generator/master: ProductGenerator (+ product_status_event), CostRecordGenerator and CompetitorObservationGenerator,
+   exactly per PLAN §7.2 steps 1, 2 and 4. This includes in-window launches and discontinuations, supplier cost shocks,
+   stale gap episodes, late feeds and low-confidence observations.
+5. generator/sim: MarketSimulator (day loop), SkuState, DemandModel and ReplenishmentPolicy.
+   It writes inventory_snapshot (every derived field in PLAN §5.5) and price_history.
+   Pricing goes behind a PriceSetter interface. Implement a temporary InitialPriceSetter
+   (initial price held constant, rounded per PLAN §8 S9) that the next step replaces.
+   units_sold is a daily total for now; the next step splits it into orders.
+6. generator/sink: RowSink, CsvRowSink, InMemoryRowSink. io/CsvSupport implements the PLAN §11 CSV rules
+   (RFC 4180, UTF-8, LF, header, empty = null, plain BigDecimal, ISO-8601 UTC, rows sorted by PK).
+7. Tests:
+   - RandomStreamsTest and DistributionsTest.
+   - GeneratorScaleTest: row counts follow the tiny profile.
+   - DerivedValuesTest: landed cost, cost periods without gaps or overlaps, inventory flow equation, opening = previous closing.
+   - GeneratorDeterminismTest: same seed twice gives byte-identical files; a different seed gives different files.
+
+Done when:
+- ./mvnw clean verify → all tests green.
+- With Docker stopped, `java -jar target/pricing-sim.jar generate --scale starter --out out/starter` writes the
+  product, product_status_event, cost_record, competitor_observation, price_history and inventory_snapshot CSVs
+  for 200 SKUs, 60 days and 3 cost months.
+- Generating into out/starter2 and running `diff -r out/starter out/starter2` produces no output.
+
+Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 step 8, plus a separate commit for the simulator). Do not push yet.
+```
+
+This is `BUILD_PROMPTS.md` Prompt 2, unchanged.
+
+**What AI produced:** _In progress. Completed in the last commit of this prompt (PLAN §16 step 9)._
+
+**What I did with it:** _Pending._
+
+**Verification:** _Pending._

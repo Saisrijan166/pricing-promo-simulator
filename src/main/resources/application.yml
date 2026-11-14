@@ -34,3 +34,36 @@ springdoc:
 logging:
   level:
     org.flywaydb: INFO
+
+# Synthetic data generator (PLAN.md §7.1). Every profile value can be overridden by a CLI flag
+# (--seed --skus --days --promos --start-date --anomalies-per-type).
+generator:
+  seed: 20261022
+  default-scale: starter
+  # Fixed "as of" timestamp recorded with each run. The generator never reads the system clock.
+  reference-ts: "2026-07-01T00:00:00Z"
+  scales:
+    # Unit and integration test fixtures.
+    tiny:
+      skus: 20
+      days: 14
+      promotions: 8
+      start-date: "2026-01-01"
+      anomalies-per-type: 1
+      competitors: 3
+    # Committed sample and CI: 01-01-2026 to 01-03-2026, which spans 3 cost months.
+    starter:
+      skus: 200
+      days: 60
+      promotions: 80
+      start-date: "2026-01-01"
+      anomalies-per-type: 5
+      competitors: 3
+    # Brief baseline: 5,000 SKUs x 180 days (01-01-2026 to 29-06-2026) x 2,000 promotions.
+    full:
+      skus: 5000
+      days: 180
+      promotions: 2000
+      start-date: "2026-01-01"
+      anomalies-per-type: 50
+      competitors: 3

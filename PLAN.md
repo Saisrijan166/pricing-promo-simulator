@@ -694,7 +694,7 @@ These are computed from source records, never drawn at random:
 | product | 5,000 |
 | cost_record | ~29,500 |
 | price_history / inventory_snapshot | ~880,000 each |
-| competitor_observation | ~400,000 |
+| competitor_observation | ~535,000 (≈ 4,000 tracked SKUs × 60% average coverage × ~206 captures per pair over 180 days; measured 534,705 for seed 20261022. The earlier ~400,000 estimate did not match the §7.2 cadence.) |
 | promotion / promotion_rule / promotion_product | 2,000 / ~5,500 / ~80,000 |
 | price_decision | ~150,000 (well under the 999,999 cap) |
 | price_decision_observation / _promotion | ~350,000 / ~120,000 |

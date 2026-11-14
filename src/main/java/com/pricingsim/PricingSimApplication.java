@@ -5,6 +5,7 @@ import java.util.Set;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Entry point for the pricing &amp; promotion simulator.
@@ -16,6 +17,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * </ul>
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class PricingSimApplication {
 
     /** CLI commands that must run without a database (PLAN.md §2 trade-offs, §3). */
@@ -38,7 +40,7 @@ public class PricingSimApplication {
     }
 
     /** CLI mode when the first argument is a command, not a Spring option such as {@code --server.port=9090}. */
-    static boolean isCliMode(String[] args) {
+    public static boolean isCliMode(String[] args) {
         return args.length > 0 && !args[0].startsWith("--");
     }
 }

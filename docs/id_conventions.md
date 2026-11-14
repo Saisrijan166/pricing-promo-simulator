@@ -30,7 +30,9 @@ Capture groups expose the embedded fields.
 ## Rules
 
 1. `<sku>` is always the **full** SKU ID: `COST-SKU-000001-2026-01`, not `COST-000001-2026-01`.
-2. `YYYY` is the year of the record's business date. All data in the 2026 simulation window carries `2026`.
+2. `YYYY` is the year of the record's business date. All data in the 2026 simulation window carries `2026`. A product
+   launched before the window has its `∅→ACTIVE` status event on its launch date, so that event carries the launch
+   year (for example `PEV-2023-000017`). Counters run separately per year.
 3. Counters are zero-padded to a fixed width. `SequenceCounter` throws `IllegalStateException` on overflow, and
    `SequenceCounter.ensureCapacity(n)` lets the generator reject a scale before it starts. The validator re-checks
    capacity.
