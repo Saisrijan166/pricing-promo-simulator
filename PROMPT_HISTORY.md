@@ -129,8 +129,43 @@ Note: do not push as of now anything will do everything later after everything i
 This is `BUILD_PROMPTS.md` Prompt 1 with one change: the final "create the public repo and push" line was replaced by
 the no-push note.
 
-**What AI produced:** _In progress. Completed in the last commit of this prompt (PLAN §16 step 5)._
+**What AI produced:** Five commits (PLAN §16 steps 1–5):
+- The brief moved to `docs/challenge_brief.md`; `.gitignore`, `.gitattributes`, `.editorconfig`, MIT `LICENSE`.
+- `pom.xml` (Java 21, Spring Boot 3.5.16, jar `pricing-sim.jar`), Maven Wrapper 3.3.4 (Maven 3.9.16), `docker-compose.yml`
+  (postgres:16-alpine, healthcheck, named volume, port from `.env`), `.env.example`, `PricingSimApplication`,
+  `application.yml`, `application-offline.yml`, `application-test.yml` (H2, PostgreSQL mode).
+- Flyway V1–V5: 19 tables, 19 PKs, 28 FKs, 42 enum CHECKs, non-unique lookup indexes, no business-rule constraints.
+- 16 domain records, 25 enums, `IdFactory` / `IdPatterns` / `SequenceCounter`, `TableSpec` / `TableRegistry`.
+- `docs/data_dictionary.md`, `docs/er_diagram.md`, `docs/id_conventions.md`.
+- Tests: `IdFactoryTest` (28), `TableRegistryTest` (98, parameterised over the 16 tables), `FlywayMigrationIT` (7).
 
-**What I did with it:** _Pending._
+Decisions and deviations the AI flagged for review:
+1. PLAN §3 and §10 say "17 data tables", but §4.1 lists 16 (9 entities + 4 bridges + 3 event tables). There are 16
+   records, and BUILD_PROMPTS Prompt 3 also says 16. The registry holds the 16 tables from §4.1.
+2. `IssueType` has the 5 anomaly types plus 4 OPERATIONAL types (COMPETITOR_DATA_STALE, GUARDRAIL_CONFLICT_ESCALATED,
+   STOCKOUT, COUPON_REJECTED). With these, `detected_exception` can hold the operational exceptions from PLAN §10 and §13.
+   `Uom` and `FundingSource` enums were added because PLAN §5 defines those value sets.
+3. ID regexes use `\d{4}` for the year (PLAN §6 `YYYY`), not the literal `2026` shown in the PLAN §5 regex column.
+4. Natural-key uniqueness, such as `U(sku_id, price_date)`, is not a DB constraint. The indexes are non-unique and the
+   validator's DUPLICATE checks enforce it (PLAN §2, §10).
+5. PLAN §5 does not define columns for `pipeline_run`, `validation_result` or `detected_exception`. The AI designed them
+   from PLAN §9, §10 and §13.
+6. The app imports `.env` (`spring.config.import`), so one `.env` file configures both Docker Compose and the app.
+7. A first argument starting with `--` (for example `--server.port=9090`) keeps web mode. Only a command word switches
+   to CLI mode.
+8. The AI caught a bug in its own first draft before committing. `System.exit(SpringApplication.exit(...))` also ran in
+   web mode, which would have stopped the server straight after startup.
 
-**Verification:** _Pending._
+**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–5 above.
+
+**Verification:**
+- `./mvnw clean verify` → BUILD SUCCESS, 133 tests, 0 failures. Commits 2 and 4 were also built and tested on their own
+  in a clean worktree.
+- `docker compose up -d` → postgres `healthy`. A local `.env` used port 5433, because 5432 was already in use on this
+  machine.
+- `java -jar target/pricing-sim.jar` → Flyway "Successfully applied 5 migrations to schema "public", now at version v5"
+  on PostgreSQL 16.15. `/swagger-ui.html` and `/v3/api-docs` return HTTP 200.
+- `docker compose exec postgres psql -U pricingsim -d pricingsim -c '\dt'` → 20 relations: the 19 application tables
+  plus `flyway_schema_history`. Postgres constraint counts match H2: 19 PK, 28 FK, 42 CHECK.
+- `java -jar target/pricing-sim.jar generate` with no reachable database → the `offline` profile starts and exits 0.
+- The 5 Mermaid diagrams in `docs/er_diagram.md` render without errors in mermaid-cli 11.
