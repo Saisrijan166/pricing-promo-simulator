@@ -108,8 +108,8 @@ The 72-hour window ends 15-11-2026 12:02 UTC, and artifact and commit timestamps
 |---|---|---|---|
 | Enum storage | `VARCHAR` + `CHECK` constraints | PostgreSQL `ENUM` types | Same Flyway scripts run on H2 (tests) and Postgres |
 | Business-rule enforcement | Validator and detector, not DB constraints | `CHECK (list_price >= floor)` | Anomalies must stay loadable to be detected. The DB enforces structure (PK, FK, enum, not-null on structural fields) only. |
-| Bulk load | `JdbcTemplate.batchUpdate`, batch 5,000, `reWriteBatchedInserts=true` | `COPY` | Fixed stack. Fast enough for about 3.5M rows. |
-| Canonical output | CSV (checksummed). JSON/SQL produced by `export`. | Everything in every format | The full dataset is about 400 MB of CSV. JSON for all of it adds little and costs time and space. |
+| Bulk load | `JdbcTemplate.batchUpdate`, batch 5,000, `reWriteBatchedInserts=true` | `COPY` | Fixed stack. Fast enough for about 4.2M rows (7.5 min measured). |
+| Canonical output | CSV (checksummed). JSON/SQL produced by `export`. | Everything in every format | The full dataset is about 770 MB of CSV (measured; ~300 MB is the decision explanation JSON). JSON for all of it adds little and costs time and space. |
 | Committed data | Starter dataset only (`data/sample/`), plus full-run manifest and evidence | Commit the full dataset | GitHub's 100 MB per-file limit. The full dataset is reproducible from the seed. |
 | Simulation | Single-threaded day loop with per-SKU RNG streams | Parallel | Global sequence IDs need a deterministic order. Single-threaded is simpler to prove reproducible. |
 | Detector | Rule-based mirror of the engine's guardrails | ML | The labels are rule-defined. The detector proves the injected anomalies are labelled exactly and that the baseline contains no unlabelled violations. |
@@ -162,7 +162,9 @@ pricing-promo-simulator/
 │       ├── manifest_full.json            # Full-scale manifest (row counts + SHA-256)
 │       ├── validation_summary_full.md    # Full-scale validation output
 │       ├── evaluation_metrics_full.json  # Precision/recall + realism metrics
-│       ├── reproducibility_report.md     # Run A vs run B checksums, IDENTICAL verdict
+│       ├── reproducibility_report.md     # Run A vs run B checksums, IDENTICAL verdict (full scale)
+│       ├── reproducibility_report_starter.md  # Same for the starter scale
+│       ├── full_run_log.txt              # Stage timings of the full-scale run-all
 │       ├── test_report.txt               # mvnw verify summary
 │       └── api_samples.md                # Real responses captured from api_smoke.sh
 │
@@ -174,7 +176,7 @@ pricing-promo-simulator/
 │   └── extract_prompt_history.sh   # jq over Claude Code JSONL transcripts → draft PROMPT_HISTORY entries
 │
 ├── data/sample/                    # COMMITTED starter dataset (scale=starter, seed=20261022)
-│   ├── csv/<table>.csv             # 17 data tables (see §4)
+│   ├── csv/<table>.csv             # 16 data tables (see §4)
 │   ├── json/<table>.json           # Same data as JSON arrays
 │   ├── sql/schema.sql              # DDL (concatenated Flyway migrations)
 │   ├── sql/seed.sql                # INSERT statements in FK-safe order
@@ -205,7 +207,8 @@ pricing-promo-simulator/
     │   │   ├── GeneratorProperties.java    # @ConfigurationProperties("generator"): seed, scales, rates
     │   │   ├── ScaleProfile.java           # record(skus, days, promotions, startDate, anomaliesPerType, competitors…)
     │   │   ├── PricingPolicyProperties.java # @ConfigurationProperties("pricing.policy"): thresholds
-    │   │   ├── JacksonConfig.java          # Plain BigDecimal, JavaTimeModule, sorted keys, ISO dates
+    │   │   ├── ApiConfig.java              # API beans (engine, DAOs), inactive under the offline profile
+│   │   │                               # (JSON settings: spring.jackson.* in application.yml, no JacksonConfig class)
     │   │   └── OpenApiConfig.java          # springdoc metadata, tags
     │   ├── domain/
     │   │   ├── model/                      # Java records, one per table:
@@ -237,7 +240,9 @@ pricing-promo-simulator/
     │   │   ├── PromotionStackResolver.java # Eligibility, exclusivity, pairwise exclusion, stack count, combined cap
     │   │   └── PricePointRounder.java      # Price-point endings that respect bounds
     │   ├── generator/
-    │   │   ├── DatasetGenerator.java       # Orchestrator: master → simulate → finalise → write manifest
+    │   │   ├── DatasetGenerator.java       # Orchestrator: master → simulate (dry run + injection run when anomalies are on)
+│   │   ├── DatasetWriter.java          # Writes csv/, labels/, manifest.json, checksums.sha256
+│   │   ├── GenerationSettings.java, Amounts.java   # Run settings; exact double → BigDecimal
     │   │   ├── GenerationContext.java      # Scale, policy, fixed clock, RandomStreams, sinks, counters
     │   │   ├── rng/RandomStreams.java      # seed = SHA-256(globalSeed|stream|key) → java.util.Random
     │   │   ├── rng/Distributions.java      # lognormal, poisson, bernoulli, weighted choice, truncated normal (StrictMath)
@@ -245,50 +250,59 @@ pricing-promo-simulator/
     │   │   ├── master/CostRecordGenerator.java
     │   │   ├── master/PromotionGenerator.java      # promotions + rules + promotion_product + status events
     │   │   ├── master/CompetitorObservationGenerator.java
+│   │   ├── master/CategoryCatalog.java, PromotionCatalog.java   # Fictional catalogue; per-SKU promotion offers
     │   │   ├── sim/MarketSimulator.java    # Day loop: decisions → price_history → demand/orders → inventory
     │   │   ├── sim/SkuState.java           # Mutable per-SKU state (stock, pipeline, trailing sales, current decision)
     │   │   ├── sim/DemandModel.java        # Latent base demand × weekday × price/promo elasticity
     │   │   ├── sim/ReplenishmentPolicy.java # (s,S) with lead times
     │   │   ├── sim/OrderGenerator.java     # Split units into orders, channel/segment, coupon presentation
-    │   │   ├── anomaly/AnomalyPlanner.java # Pre-selects targets from the "anomaly" RNG stream
+│   │   ├── sim/PriceSetter.java, EnginePriceSetter.java  # Decision triggers → PricingEngine → decision rows
+│   │   ├── sim/SimulationHooks.java    # Extension points used by anomaly injection
+    │   │   ├── anomaly/CandidateCollector.java # Baseline dry run: records eligible targets
+│   │   ├── anomaly/AnomalyPlanner.java # Pre-selects targets from the "anomaly" RNG stream
     │   │   ├── anomaly/AnomalyPlan.java
     │   │   ├── anomaly/AnomalyInjector.java # Hooks called by simulator; mutates and records label
+│   │   ├── anomaly/GroundTruthFiles.java # labels/ground_truth.csv/.json
     │   │   ├── anomaly/GroundTruthRecord.java
-    │   │   └── sink/RowSink.java, CsvRowSink.java, InMemoryRowSink.java
+    │   │   └── sink/RowSink.java, CsvRowSink.java (spills sorted runs), InMemoryRowSink.java, NullRowSink.java
     │   ├── io/
     │   │   ├── TableSpec.java              # Table name, file, ordered columns, PK, FKs, enum columns, ID pattern
-    │   │   ├── TableRegistry.java          # All 17 tables + FK-safe load order (drives loader AND validator)
+    │   │   ├── TableRegistry.java          # All 16 data tables + FK-safe load order (drives loader AND validator)
     │   │   ├── CsvSupport.java             # Commons CSV format: RFC4180, LF, header, empty = null
     │   │   ├── CsvDatasetReader.java
     │   │   ├── JsonExporter.java
     │   │   ├── SqlExporter.java
     │   │   ├── ChecksumService.java        # SHA-256 per file + dataset fingerprint
-    │   │   └── ManifestWriter.java
+    │   │   ├── ManifestWriter.java
+│   │   └── JsonText.java               # Deterministic JSON text helpers
     │   ├── persistence/
     │   │   ├── BulkLoader.java             # TRUNCATE … CASCADE then batch insert in TableRegistry order
     │   │   ├── PricingInputDao.java        # Assembles PricingContext from DB for simulate API
     │   │   ├── DecisionQueryDao.java       # Decision + bridges + price history range
     │   │   ├── ExceptionDao.java           # detected_exception read/write, paging
-    │   │   └── RunDao.java                 # pipeline_run, validation_result
+    │   │   ├── RunDao.java                 # pipeline_run (reproducible run IDs)
+│   │   ├── Dialect.java, Rows.java     # PostgreSQL / H2 differences; driver-independent row values
     │   ├── validation/
     │   │   ├── ValidationCheck.java, CheckResult.java, CheckCategory.java
     │   │   ├── ValidationRunner.java
     │   │   ├── ValidationSummaryWriter.java  # JSON + Markdown
-    │   │   └── checks/PrimaryKeyChecks.java, ForeignKeyChecks.java, EnumChecks.java, IdFormatChecks.java,
+    │   │   └── checks/RegistryChecks.java (PK, FK, enum, ID format, duplicates — generated from TableRegistry),
     │   │              DateOrderChecks.java, ReconciliationChecks.java, LifecycleTransitionChecks.java,
-    │   │              DuplicateChecks.java, CoverageChecks.java, NoLookAheadChecks.java, BusinessRuleChecks.java
+    │   │              CoverageChecks.java, NoLookAheadChecks.java, BusinessRuleChecks.java
     │   ├── detection/
     │   │   ├── ExceptionDetector.java      # Runs detectors; NEVER imports generator.anomaly or reads labels/
-    │   │   ├── DetectedException.java
-    │   │   └── rules/PriceBelowFloorDetector.java, PromoStackViolationDetector.java,
+    │   │   ├── DetectedException.java, DetectionRule.java
+    │   │   └── rules/BusinessRules.java, PriceBelowFloorDetector.java, PromoStackViolationDetector.java,
     │   │             StaleObservationDetector.java, MarginBasisDetector.java,
     │   │             UnexplainedPriceChangeDetector.java, OperationalExceptionCollector.java
     │   ├── evaluation/
     │   │   ├── GroundTruthEvaluator.java   # TP/FP/FN per issue type
     │   │   ├── DatasetMetricsCalculator.java # Realism bands
-    │   │   └── EvaluationReportWriter.java
+    │   │   ├── EvaluationReportWriter.java
+│   │   └── EvaluationRunner.java       # The only reader of labels/
     │   ├── service/
-    │   │   ├── SimulationService.java, DecisionExplainService.java, ExceptionQueryService.java, ReportService.java
+    │   │   ├── SimulationService.java, DecisionExplainService.java, ExceptionQueryService.java, ReportService.java,
+    │   │   │   NotFoundException.java
     │   └── api/
     │       ├── PricingController.java      # POST /api/v1/pricing/simulate
     │       ├── DecisionController.java     # GET /api/v1/decisions/{id}, /{id}/explain
@@ -688,20 +702,25 @@ These are computed from source records, never drawn at random:
 - competitor ref price and fresh/stale counts
 - final product and promotion statuses (from events)
 
-### 7.4 Expected full-scale volumes (verified against the manifest after the first full run)
-| Table | ≈ rows |
-|---|---|
-| product | 5,000 |
-| cost_record | ~29,500 |
-| price_history / inventory_snapshot | ~880,000 each |
-| competitor_observation | ~535,000 (≈ 4,000 tracked SKUs × 60% average coverage × ~206 captures per pair over 180 days; measured 534,705 for seed 20261022. The earlier ~400,000 estimate did not match the §7.2 cadence.) |
-| promotion / promotion_rule / promotion_product | 2,000 / ~5,500 / ~80,000 |
-| price_decision | ~150,000 (well under the 999,999 cap) |
-| price_decision_observation / _promotion | ~350,000 / ~120,000 |
-| customer_order / order_promotion | ~700,000 / ~250,000 |
-| status events (3 tables) | ~470,000 |
+### 7.4 Full-scale volumes (planned estimates, then measured from the manifest of the first full run)
+| Table | Planned ≈ rows | Measured (seed 20261022) |
+|---|---|---|
+| product | 5,000 | 5,000 |
+| cost_record | ~29,500 | 29,000 |
+| price_history / inventory_snapshot | ~880,000 each | 864,016 each (in-window launches and discontinuations have fewer active days) |
+| competitor_observation | ~400,000 | 534,705 (≈ 4,000 tracked SKUs × 60% coverage × ~206 captures per pair; the estimate did not match the §7.2 cadence) |
+| promotion / promotion_rule / promotion_product | 2,000 / ~5,500 / ~80,000 | 2,000 / 5,252 / 74,320 |
+| price_decision | ~150,000 (well under the 999,999 cap) | 147,339 |
+| price_decision_observation / _promotion | ~350,000 / ~120,000 | 305,541 / 45,385 (markdown lists are small, see §7.5) |
+| customer_order / order_promotion | ~700,000 / ~250,000 | 944,948 / 242,334 |
+| status events (3 tables) | ~470,000 | 598,675 |
 
-**Performance targets:** generate in under 3 min and load in under 6 min, with `-Xmx2g`. The generator streams rows to CSV, and in-memory state is per SKU only.
+**Performance targets:** generate in under 3 min and load in under 6 min, with `-Xmx2g`.
+
+**Measured** (4 CPUs, PostgreSQL 16 in Docker; `docs/evidence/full_run_log.txt`):
+- `generate`: 73 s (a dry run plus the real run, peak RSS 1.8 GB). Rows stream to CSV, and sorted runs spill to disk.
+- `load`: 7.5 min. This misses the 6-minute target; `COPY` would be the next step (ADR-03).
+- The whole `run-all`: 10.7 min.
 
 ### 7.5 Realism bands
 `DatasetMetricsCalculator` gives WARN if a metric falls outside its band.
@@ -801,7 +820,7 @@ Example:
 
 | Category | ID range | Checks | Expected |
 |---|---|---|---|
-| PRIMARY_KEY | PK-001..017 | `GROUP BY pk HAVING COUNT(*)>1` and null PKs, per table | 0 |
+| PRIMARY_KEY | PK-001..016 | `GROUP BY pk HAVING COUNT(*)>1` and null PKs, per table | 0 |
 | FOREIGN_KEY | FK-001..0xx | `LEFT JOIN parent WHERE parent.pk IS NULL AND child.fk IS NOT NULL` for every FK, bridges included | 0 |
 | ENUM | EN-001.. | Every enum column ∈ allowed set | 0 |
 | ID_FORMAT | ID-001.. | Regex per ID column. Embedded sku/date/month = columns. Counter capacity. | 0 |
@@ -952,7 +971,7 @@ The base path is `/api/v1`. OpenAPI is at `/v3/api-docs` and Swagger UI at `/swa
 6. **Full-scale run.** The command, expected runtime and expected row counts (linked to `docs/evidence/manifest_full.json`).
 7. **Verify it works (reviewer checklist):**
    - `./mvnw verify` (expected test count).
-   - `sha256sum -c data/sample/checksums.sha256`.
+   - `(cd data/sample && sha256sum -c checksums.sha256)`.
    - `scripts/repro_check.sh starter` → IDENTICAL.
    - Open `validation_summary.md`: structural 0 failures, business findings = injected.
    - `evaluation_metrics.json`: per-type recall and precision.
@@ -1008,7 +1027,7 @@ The base path is `/api/v1`. OpenAPI is at `/v3/api-docs` and Swagger UI at `/swa
 7. **Verification methods independent of AI:** tests, reproducibility hashes, manual SQL spot checks on Postgres, hand-computed golden scenarios.
 8. **Statement:** I understand and can walk through every component.
 
-**Commit trailers:** commits made with AI assistance keep their `Co-Authored-By` trailer. That is consistent with transparent disclosure.
+**Commit attribution:** commits are authored by the developer (`Saisrijan166`) and carry no AI `Co-Authored-By` trailer; this was the developer's choice. AI involvement is disclosed in full in `PROMPT_HISTORY.md` (every prompt, verbatim) and `AI_USAGE.md`.
 
 ---
 
@@ -1050,7 +1069,7 @@ These are the commands the README will show and that I will run for the evidence
 
 ```bash
 # 0. Clone and configure
-git clone https://github.com/<your-username>/pricing-promo-simulator.git
+git clone https://github.com/Saisrijan166/pricing-promo-simulator.git
 cd pricing-promo-simulator
 cp .env.example .env                      # edit POSTGRES_PORT if 5432 is busy
 
@@ -1065,19 +1084,19 @@ docker compose ps                         # wait for "healthy"
 java -jar target/pricing-sim.jar generate --scale starter --seed 20261022 --out out/starter
 
 # 4. Load into Postgres (Flyway migrates on startup)
-java -jar target/pricing-sim.jar load --in out/starter
+java -jar target/pricing-sim.jar load --out out/starter
 
 # 5. Validate, detect exceptions, evaluate against ground truth
-java -jar target/pricing-sim.jar validate --in out/starter     # writes validation_summary.json/.md
-java -jar target/pricing-sim.jar detect   --in out/starter     # writes detected_exceptions.csv + DB table
-java -jar target/pricing-sim.jar evaluate --in out/starter     # writes evaluation_metrics.json
+java -jar target/pricing-sim.jar validate --out out/starter    # writes validation_summary.json/.md
+java -jar target/pricing-sim.jar detect   --out out/starter    # writes detected_exceptions.csv + DB table
+java -jar target/pricing-sim.jar evaluate --out out/starter    # writes evaluation_metrics.json
 
 # 6. Export JSON/SQL
-java -jar target/pricing-sim.jar export --in out/starter --formats json,sql
+java -jar target/pricing-sim.jar export --out out/starter --formats json,sql
 
 # 7. Prove reproducibility
 ./scripts/repro_check.sh starter                               # expect: IDENTICAL
-sha256sum -c data/sample/checksums.sha256                      # committed sample still verifies
+(cd data/sample && sha256sum -c checksums.sha256)            # committed sample still verifies
 
 # 8. Full scale (5,000 SKUs × 180 days × 2,000 promotions)
 java -Xmx2g -jar target/pricing-sim.jar run-all --scale full --out out/full
@@ -1112,12 +1131,12 @@ open http://localhost:8080/swagger-ui.html
 - [ ] Every commit is inside the 72-hour window. The history is meaningful and pushed. Tag `v1.0.0`.
 
 **Fresh-clone test** (≥ 1 h before submitting)
-- [ ] `scripts/fresh_clone_test.sh https://github.com/<user>/pricing-promo-simulator.git` runs in a new temp directory under a different Compose project name. Steps 1–7 pass, and the regenerated starter checksums equal the committed `data/sample/checksums.sha256`.
+- [ ] `scripts/fresh_clone_test.sh https://github.com/Saisrijan166/pricing-promo-simulator.git` runs in a new temp directory under a different Compose project name. Steps 1–7 pass, and the regenerated starter checksums equal the committed `data/sample/checksums.sha256`.
 - [ ] Open the repo URL in a private/incognito browser window to confirm it is **public**.
 
 **Submit**
 - [ ] Final push done. `git status` is clean. The default branch is `main`.
-- [ ] Paste the repository URL (`https://github.com/<user>/pricing-promo-simulator`) into the YottaFlex portal field **once**. Submissions are final.
+- [ ] Paste the repository URL (`https://github.com/Saisrijan166/pricing-promo-simulator`) into the YottaFlex portal field **once**. Submissions are final.
 - [ ] Submit **before Sun 15-11-2026 12:02 UTC**, with a target of 10:00 UTC at the latest.
 - [ ] Do not push after submitting, so the reviewed state equals the submitted state. If a push is unavoidable, the `v1.0.0` tag still marks the submission.
 - [ ] Walkthrough prep: a 5-minute demo script.

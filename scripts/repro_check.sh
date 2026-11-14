@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reproducibility proof (PLAN.md §11): generate the same scale twice with the same seed in separate JVM runs and
 # compare checksums (expected IDENTICAL), then with a different seed (expected DIFFERENT fingerprint).
-# Writes docs/evidence/reproducibility_report.md. No database needed.
+# Writes docs/evidence/reproducibility_report.md (override with REPORT=<file>). No database needed.
 #
 #   ./scripts/repro_check.sh [tiny|starter|full] [seed]
 set -euo pipefail
@@ -11,7 +11,7 @@ SEED="${2:-20261022}"
 OTHER_SEED=$((SEED + 1))
 BASE="out/repro"
 JAR="target/pricing-sim.jar"
-REPORT="docs/evidence/reproducibility_report.md"
+REPORT="${REPORT:-docs/evidence/reproducibility_report.md}"
 JAVA_OPTS="${JAVA_OPTS:--Xmx2g}"
 
 cd "$(dirname "$0")/.."

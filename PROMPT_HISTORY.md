@@ -10,6 +10,10 @@ How AI was used overall is summarised in `AI_USAGE.md`.
   context to each message automatically (`<ide_opened_file>` notes) and wraps pastes in tags. Neither is part of the
   prompt, so both are omitted. Nothing else is changed.
 - The log is updated at every commit boundary (PLAN.md §15).
+- Entries #03a–#03d come from a second Claude Code session that ran in parallel on repository housekeeping. They
+  are placed chronologically; the letter suffix keeps the existing entry numbers, which commit messages refer to.
+- `scripts/extract_prompt_history.sh` regenerates a draft of every prompt from the transcripts, for checking this
+  file against them.
 
 ---
 
@@ -170,6 +174,92 @@ Decisions and deviations the AI flagged for review:
   plus `flyway_schema_history`. Postgres constraint counts match H2: 19 PK, 28 FK, 42 CHECK.
 - `java -jar target/pricing-sim.jar generate` with no reachable database → the `offline` profile starts and exits 0.
 - The 5 Mermaid diagrams in `docs/er_diagram.md` render without errors in mermaid-cli 11.
+
+---
+
+### #03a — 2026-11-14 08:45 UTC — Claude Code (Opus 5.5), separate session — Housekeeping: Repository identity and remote
+
+**Prompt (verbatim):**
+
+```text
+revert the  commits and all 
+
+keep the changes locally 
+and have to commit with saisrijan166 idenetity only that too no claude nothing else trace and 
+
+git remote add origin https://github.com/Saisrijan166/pricing-promo-simulator.git
+git branch -M main
+git push -u origin main
+
+this is repo
+```
+
+**What AI produced:** In that session, the five P0–P1 commits were re-created with author and committer
+`Saisrijan166 <Saisrijan166@gmail.com>` and no AI trailer. File contents were unchanged and the commits got new hashes
+(`5c2dd0c` … `e43b534`). The `origin` remote was added, and `main` was pushed to it.
+
+**What I did with it:** TODO(me): confirm.
+
+**Verification:** `git log --format='%an <%ae>'` shows only Saisrijan166, and `git ls-remote origin` showed
+`refs/heads/main` on GitHub.
+
+---
+
+### #03b — 2026-11-14 08:47 UTC — Claude Code (Opus 5.5), separate session — Housekeeping: Question: are PROMPT_HISTORY and BUILD_PROMPTS needed?
+
+**Prompt (verbatim):**
+
+```text
+promt histry and build prompts are needed ?? to commit or submission
+```
+
+**What AI produced:** An answer only, with no file change. `PROMPT_HISTORY.md` is required by the submission guidelines;
+`BUILD_PROMPTS.md` is optional working material.
+
+**What I did with it:** TODO(me): confirm.
+
+**Verification:** Not applicable (question).
+
+---
+
+### #03c — 2026-11-14 08:50 UTC — Claude Code (Opus 5.5), separate session — Housekeeping: Rewrite BUILD_PROMPTS as standard, self-contained prompts through submission
+
+**Prompt (verbatim):**
+
+```text
+so make them starndartd prompts ad the standard prompt histoiry no traces o this chat or naything should exists 
+not include this session in histiry or propts  so on 
+
+so once finallised prompts rewrite the many requeired or whatvere required final submisison till 
+i want completekte submission ready prompts so on in thefile and till prompts finish suubmissionr ead appluaction should be made
+```
+
+**What AI produced:** Commit `6574e1c`. `BUILD_PROMPTS.md` was restructured into six self-contained phase prompts, from
+setup through submission (the prompts used as #04 onwards), and five lines in `PROMPT_HISTORY.md` #03 were adjusted.
+
+This prompt asked to keep that session out of the history. On 14-11-2026, during prompt #08, the developer chose to
+record all prompts verbatim instead, so the history is complete and consistent with git log.
+
+**What I did with it:** TODO(me): confirm.
+
+**Verification:** `git show --stat 6574e1c`.
+
+---
+
+### #03d — 2026-11-14 08:52 UTC — Claude Code (Opus 5.5), separate session — Housekeeping: Do not commit BUILD_PROMPTS
+
+**Prompt (verbatim):**
+
+```text
+also no need of commiting build prompts
+```
+
+**What AI produced:** Commit `a7a5804`. `BUILD_PROMPTS.md` was removed from the repository and is kept locally only
+(listed in `.git/info/exclude`). Each prompt in it is recorded verbatim in this file when it is used.
+
+**What I did with it:** TODO(me): confirm.
+
+**Verification:** `git show --stat a7a5804`.
 
 ---
 
@@ -589,3 +679,98 @@ the explain response).
 - `./scripts/api_smoke.sh` → exit 0. simulate 2,327 bytes, explain 4,896 bytes, exceptions 2,345 bytes, all HTTP 200.
   The unknown-decision example returns a 404 ProblemDetail.
 - `generate --scale tiny` with an unreachable `DB_URL` still exits 0 (offline profile, no API beans).
+
+---
+
+### #08 — 2026-11-14 11:26 UTC — Claude Code (Opus 5.5) — Phases P8–P9 Full-scale run, documentation, fresh-clone test, submission
+
+**Prompt (verbatim):**
+
+```text
+Read PLAN.md (§14, §15, §17, §18). Implement phases P8–P9. The submission deadline is Sun 15-11-2026 12:02 UTC.
+
+Deliverables:
+1. Full run: `java -Xmx2g -jar target/pricing-sim.jar run-all --scale full --out out/full` (5,000 SKUs, 180 days, 2,000 promotions).
+   - Record the runtime of each stage.
+   - Copy the manifest, validation summary and evaluation metrics to docs/evidence/
+     (manifest_full.json, validation_summary_full.md, evaluation_metrics_full.json).
+   - Required: 0 structural failures, 250 business-rule findings, precision = recall = 1.0 per type.
+   - Fix any realism-band WARN, or explain it in the README.
+   - Run `./scripts/repro_check.sh full`. If it is too slow, run it for starter and state that in the README.
+2. Save the `./mvnw clean verify` summary (test counts) to docs/evidence/test_report.txt.
+3. docs/design_decisions.md: one ADR per trade-off in PLAN §2.
+4. README.md, every section in PLAN §14, using real numbers from docs/evidence.
+   Every command in it must be copy-paste runnable from a fresh clone.
+5. AI_USAGE.md per PLAN §15, drafted from PROMPT_HISTORY.md and git log.
+   Every statement about what the developer personally reviewed, changed or validated is marked `TODO(me): confirm`.
+   Do not invent such claims.
+6. PROMPT_HISTORY.md is complete and consistent with git log. scripts/extract_prompt_history.sh exists.
+7. PLAN.md matches the final implementation: table counts, file list, and the commit-attribution statement in §15.
+8. scripts/fresh_clone_test.sh <repo URL>: clone into a temp directory and use a separate Compose project name and port.
+   Run build, tests, starter run_all and repro_check, and compare the regenerated starter checksums with data/sample/checksums.sha256.
+9. Push main to origin. Run `./scripts/fresh_clone_test.sh https://github.com/Saisrijan166/pricing-promo-simulator.git`.
+   Fix anything it finds as `fix:` commits, push, and re-run until it passes. Then tag v1.0.0 and push the tag.
+
+Done when:
+- The fresh-clone test passes against the public GitHub URL.
+- `git status` is clean, `git log origin/main` equals local main, and the v1.0.0 tag is on GitHub.
+- The repo opens without login (check with `curl -s -o /dev/null -w '%{http_code}'` → 200).
+- No secrets are tracked, and no tracked file is over 50 MB.
+- The PLAN §18 checklist is printed, with ✅/❌ and the evidence (file or command) for every item.
+  Any remaining `TODO(me)` markers are listed for the developer to resolve before submitting.
+- The repository URL is not submitted on the YottaFlex portal; the developer submits it, once.
+
+Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 steps 17–18), push, and tag v1.0.0.
+```
+
+This is `BUILD_PROMPTS.md` Prompt 6, unchanged.
+
+**Developer decision during this prompt:** The AI asked how to record the four prompts of the parallel housekeeping
+session. They are needed for the history to be complete and consistent with git log, but at the time they were asked
+to be left out. Answer: "Include verbatim (Recommended)". They are now entries #03a–#03d.
+
+**What AI produced:**
+- **Full-scale run:** `run-all --scale full`, plus evidence in `docs/evidence/`: `manifest_full.json`,
+  `validation_summary_full.md`, `evaluation_metrics_full.json`, `full_run_log.txt`, both reproducibility reports and
+  `test_report.txt`.
+- **Two fixes found by the full run:**
+  - `102144b`: a stale-observation anomaly target that cannot become USED crashed `generate`.
+  - `be1e8d2`: markdown SKU-days were 14.9%, just below the 15–30% band.
+- **Refreshed data:** `data/sample/` and the API samples regenerated with the final code.
+- **New files:** `README.md` (every PLAN §14 section, numbers from the evidence), `AI_USAGE.md` (developer claims
+  marked `TODO(me): confirm`), `docs/design_decisions.md` (16 ADRs), `scripts/fresh_clone_test.sh` and
+  `scripts/extract_prompt_history.sh` (jq).
+- **PLAN.md alignment:**
+  - 16 data tables, not 17.
+  - The file tree matches the code.
+  - Measured §7.4 volumes and timings.
+  - §15 commit attribution: no AI trailer; disclosure is in this file and AI_USAGE.md.
+  - §17 commands use `--out`.
+  - Checksum verification runs inside `data/sample`.
+- **PROMPT_HISTORY.md:** the housekeeping prompts #03a–#03d.
+
+Decisions and deviations the AI flagged for review:
+1. **Load is slower than planned.** Full-scale load takes 7.5 min against the PLAN target of 6 min. It is documented,
+   not optimised; `COPY` is the next step (ADR-03).
+2. **One realism band stays WARN.** The stale-observation share (21.7% vs 5–15%) follows from the plan's own weekly
+   GAMMA cadence and 72 h freshness. It is explained in the README rather than tuned away.
+3. **README wording.** The README describes the project neutrally. Personal claims of review and validation exist
+   only in AI_USAGE.md, marked `TODO(me)`.
+
+**What I did with it:** TODO(me): accept / modify / reject; complete the TODO(me) markers in AI_USAGE.md before
+submitting.
+
+**Verification (before the push):**
+- `run-all --scale full`: exit 0 in 10 min 45 s, peak RSS 1.8 GB.
+  - Validation: 183 checks, **0 structural failures, 250 business-rule findings** (50 per type).
+  - Evaluation: precision = recall = 1.0 for each type.
+  - Realism: 6 of 7 bands OK.
+- `./scripts/repro_check.sh full` → IDENTICAL (18 files), seed 20261023 → DIFFERENT. Its fingerprint equals the
+  `run-all` dataset's.
+- `./scripts/run_all.sh starter` → 0 structural failures, 25 findings, precision = recall = 1.0. `data/sample`
+  verifies with `sha256sum -c`.
+- `./mvnw clean verify` → 338 tests, 0 failures.
+- README checks run by hand against the starter data in PostgreSQL:
+  - the three SQL spot checks each return 0;
+  - the curl examples (simulate, explain, exceptions, price history, reports) return HTTP 200;
+  - the `-Dpricing.policy.freshness-hours=48` override is recorded in the manifest.
