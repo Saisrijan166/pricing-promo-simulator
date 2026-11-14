@@ -36,8 +36,9 @@ public interface PriceSetter {
      * @param listPrice        list price in effect
      * @param shelfPrice       list price minus the applied markdowns
      * @param changeReason     reason to record when the list price differs from the previous day (or on the first
-     *                         day); the simulator records NO_CHANGE otherwise
-     * @param sourceDecisionId decision that set the price
+     *                         day); the simulator records NO_CHANGE otherwise. Null only for a price no decision set.
+     * @param sourceDecisionId decision that set the price; null only for a price no decision set (an injected
+     *                         PRICE_CHANGE_WITHOUT_REASON span)
      * @param markdowns        applied markdowns with their per-unit discounts, in application order
      */
     record DailyPrice(BigDecimal listPrice, BigDecimal shelfPrice, ReasonCode changeReason, String sourceDecisionId,
@@ -45,7 +46,9 @@ public interface PriceSetter {
         public DailyPrice {
             Objects.requireNonNull(listPrice, "listPrice");
             Objects.requireNonNull(shelfPrice, "shelfPrice");
-            Objects.requireNonNull(changeReason, "changeReason");
+            if ((changeReason == null) != (sourceDecisionId == null)) {
+                throw new IllegalArgumentException("changeReason and sourceDecisionId are null together or not at all");
+            }
             markdowns = List.copyOf(markdowns);
             if (shelfPrice.compareTo(listPrice) > 0) {
                 throw new IllegalArgumentException("shelf price above list price");

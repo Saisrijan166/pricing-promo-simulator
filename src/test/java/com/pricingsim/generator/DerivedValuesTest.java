@@ -39,7 +39,7 @@ import com.pricingsim.pricing.GuardrailCalculator;
 import com.pricingsim.pricing.PricePointRounder;
 
 /**
- * Derived values reconcile with their source records in a generated starter dataset (PLAN.md §7.3, §12). Every
+ * Derived values reconcile with their source records in a clean generated starter dataset (PLAN.md §7.3, §12). Every
  * expected value is recomputed here from the rows themselves, the way the validator will.
  */
 class DerivedValuesTest {
@@ -57,7 +57,7 @@ class DerivedValuesTest {
 
     @BeforeAll
     static void generateStarter() {
-        settings = TestSettings.forScale("starter");
+        settings = TestSettings.clean("starter"); // business rules hold everywhere in a clean run
         InMemoryRowSink sink = new InMemoryRowSink();
         new DatasetGenerator().generate(settings, sink);
         products = sink.<Product>rows(TableRegistry.PRODUCT).stream()

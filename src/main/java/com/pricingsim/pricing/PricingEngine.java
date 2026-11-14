@@ -68,6 +68,26 @@ public final class PricingEngine {
             ReasonCode.COMPETITOR_DATA_STALE,
             ReasonCode.NO_CHANGE);
 
+    /**
+     * Deliberate rule violations, used only by anomaly injection to fabricate the PLAN.md §9 defects with consistent
+     * arithmetic. The generator baseline and the API always use {@link #NONE}, which follows PLAN.md §8 exactly.
+     *
+     * @param forcedListPrice         record an analyst override at this list price, skipping the step limit, the clamp
+     *                                and price-point rounding (PRICE_BELOW_FLOOR)
+     * @param staleObservationsAsUsed observation IDs that pass the freshness test whatever their age
+     *                                (STALE_OBSERVATION_AS_CURRENT)
+     * @param marginOnListPrice       judge and store the margin on the list price instead of the net price
+     *                                (MARGIN_BEFORE_DISCOUNT)
+     */
+    public record Faults(BigDecimal forcedListPrice, Set<String> staleObservationsAsUsed, boolean marginOnListPrice) {
+        public static final Faults NONE = new Faults(null, java.util.Collections.emptySortedSet(), false);
+
+        public Faults {
+            staleObservationsAsUsed = java.util.Collections.unmodifiableSortedSet(
+                    new java.util.TreeSet<>(staleObservationsAsUsed));
+        }
+    }
+
     private final PricingPolicy policy;
 
     public PricingEngine(PricingPolicy policy) {
@@ -79,11 +99,18 @@ public final class PricingEngine {
     }
 
     public PricingResult price(PricingContext ctx) {
+        return price(ctx, Faults.NONE);
+    }
+
+    /** Prices with deliberate faults (anomaly injection only); {@code Faults.NONE} is the normal engine. */
+    public PricingResult price(PricingContext ctx, Faults faults) {
         Objects.requireNonNull(ctx, "ctx");
+        Objects.requireNonNull(faults, "faults");
         Set<ReasonCode> reasons = new LinkedHashSet<>();
         List<ExplanationStep> steps = new ArrayList<>(12);
         BigDecimal prev = ctx.prevListPrice();
-        boolean manual = ctx.manualOverride();
+        BigDecimal forced = faults.forcedListPrice();
+        boolean manual = ctx.manualOverride() || forced != null;
 
         // S1 Inputs
         steps.add(step("S1", "Inputs", map("trigger", ctx.trigger().name(),
@@ -111,7 +138,7 @@ public final class PricingEngine {
 
         // S4 Competitor reference
         CompetitorReferenceResolver.Result comp = CompetitorReferenceResolver.resolve(ctx.observations(),
-                ctx.decisionTs(), policy);
+                ctx.decisionTs(), policy, faults.staleObservationsAsUsed());
         if (comp.dataStale()) {
             reasons.add(ReasonCode.COMPETITOR_DATA_STALE);
         }
@@ -124,7 +151,7 @@ public final class PricingEngine {
         BigDecimal target;
         String s5;
         if (manual) {
-            target = money(ctx.manualTargetPrice());
+            target = money(forced != null ? forced : ctx.manualTargetPrice());
             reasons.add(ReasonCode.MANUAL_OVERRIDE);
             s5 = "manual override";
         } else if (comp.referencePrice() != null) {
@@ -188,9 +215,11 @@ public final class PricingEngine {
         steps.add(step("S7", "Step limit", map("prev", str(prev)), str(stepped), s7));
 
         // S8 Clamp
-        BigDecimal candidate = g.clamp(stepped);
+        BigDecimal candidate = forced != null ? stepped : g.clamp(stepped);
         String s8 = "inside";
-        if (stepped.compareTo(g.floor()) < 0 || conflict) {
+        if (forced != null) {
+            s8 = "inside"; // the faulty override path skips the clamp but reports as usual
+        } else if (stepped.compareTo(g.floor()) < 0 || conflict) {
             reasons.add(ReasonCode.FLOOR_ENFORCED);
             s8 = "raised to floor";
         } else if (stepped.compareTo(g.ceiling()) > 0) {
@@ -202,7 +231,10 @@ public final class PricingEngine {
         // S9 Price point
         BigDecimal finalList;
         String s9;
-        if (conflict) {
+        if (forced != null) {
+            finalList = candidate;
+            s9 = PricePointRounder.isPricePoint(candidate) ? "already a point" : "no point fits";
+        } else if (conflict) {
             finalList = candidate;
             s9 = "conflict: floor unrounded";
         } else {
@@ -237,7 +269,8 @@ public final class PricingEngine {
                 applied);
         BigDecimal net = finalList.subtract(PromotionStackResolver.total(discounts));
         BigDecimal required = applied.isEmpty() ? ctx.minMarginPct() : ctx.minPromoMarginPct();
-        while (!applied.isEmpty() && !MarginCalculator.meetsMargin(net, ctx.landedCost(), required)) {
+        while (!applied.isEmpty() && !MarginCalculator.meetsMargin(faults.marginOnListPrice() ? finalList : net,
+                ctx.landedCost(), required)) {
             PromotionOffer dropped = applied.remove(applied.size() - 1);
             for (int i = 0; i < evaluations.size(); i++) {
                 PromotionStackResolver.Evaluation e = evaluations.get(i);
@@ -263,7 +296,9 @@ public final class PricingEngine {
         for (PromotionStackResolver.Evaluation e : evaluations) {
             reasons.add(e.reason());
         }
-        BigDecimal marginPct = MarginCalculator.netMargin(net, ctx.landedCost());
+        BigDecimal marginPct = faults.marginOnListPrice()
+                ? finalList.subtract(ctx.landedCost()).divide(finalList, 4, RoundingMode.HALF_UP)
+                : MarginCalculator.netMargin(net, ctx.landedCost());
         BigDecimal markdownPct = finalList.subtract(net).divide(finalList, 4, RoundingMode.HALF_UP);
         long dropped = evaluations.stream().filter(e -> e.reason() == ReasonCode.PROMO_REJECTED_MARGIN).count();
         steps.add(step("S11", "Net margin", map("net", str(net), "required", str(required)), str(marginPct),

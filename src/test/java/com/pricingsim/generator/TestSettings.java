@@ -50,6 +50,13 @@ public final class TestSettings {
                 List.of("generate", "--scale", scale));
     }
 
+    /** Settings for a named profile with no anomalies: the clean baseline. */
+    public static GenerationSettings clean(String scale) {
+        GenerationSettings s = forScale(scale);
+        return new GenerationSettings(s.seed(), scale, s.profile().withOverrides(null, null, null, null, 0),
+                s.referenceTs(), s.policy(), s.commandLine());
+    }
+
     private static Binder binder() {
         try {
             List<PropertySource<?>> sources =

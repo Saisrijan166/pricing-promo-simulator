@@ -57,6 +57,16 @@ public final class CompetitorReferenceResolver {
     }
 
     public static Result resolve(List<CompetitorObservation> observations, Instant decisionTs, PricingPolicy policy) {
+        return resolve(observations, decisionTs, policy, java.util.Collections.emptySortedSet());
+    }
+
+    /**
+     * As {@link #resolve(List, Instant, PricingPolicy)}, but the observations in {@code treatedAsFresh} pass the
+     * freshness test whatever their age. This is a deliberate fault used only by anomaly injection
+     * (STALE_OBSERVATION_AS_CURRENT, PLAN.md §9); the stored {@code age_hours} stays the real age.
+     */
+    public static Result resolve(List<CompetitorObservation> observations, Instant decisionTs, PricingPolicy policy,
+                                 java.util.Set<String> treatedAsFresh) {
         Objects.requireNonNull(decisionTs, "decisionTs");
         Map<Competitor, List<CompetitorObservation>> visible = new EnumMap<>(Competitor.class);
         for (CompetitorObservation o : observations) {
@@ -77,7 +87,7 @@ public final class CompetitorReferenceResolver {
             for (int i = 0; i < list.size(); i++) {
                 CompetitorObservation o = list.get(i);
                 long ageSeconds = Duration.between(o.sourceCapturedAt(), decisionTs).getSeconds();
-                boolean fresh = ageSeconds <= policy.freshnessSeconds();
+                boolean fresh = ageSeconds <= policy.freshnessSeconds() || treatedAsFresh.contains(o.observationId());
                 ObservationUsage usage;
                 if (i == 0) {
                     if (!fresh) {

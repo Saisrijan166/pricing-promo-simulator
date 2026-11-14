@@ -46,8 +46,11 @@ public final class MarketSimulator {
     private final GenerationContext ctx;
     private final PriceSetter priceSetter;
     private final OrderGenerator orderGenerator;
+    private final SimulationHooks hooks;
 
-    public MarketSimulator(GenerationContext ctx, PriceSetter priceSetter, OrderGenerator orderGenerator) {
+    public MarketSimulator(GenerationContext ctx, PriceSetter priceSetter, OrderGenerator orderGenerator,
+                           SimulationHooks hooks) {
+        this.hooks = Objects.requireNonNull(hooks, "hooks");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.priceSetter = Objects.requireNonNull(priceSetter, "priceSetter");
         this.orderGenerator = Objects.requireNonNull(orderGenerator, "orderGenerator");
@@ -133,11 +136,14 @@ public final class MarketSimulator {
         BigDecimal previousListPrice = state.listPrice();
         PriceSetter.DailyPrice price = priceSetter.priceFor(state, day, cost, opening + receipts);
         boolean changed = previousListPrice == null || price.listPrice().compareTo(previousListPrice) != 0;
-        ReasonCode changeReason = changed ? price.changeReason() : ReasonCode.NO_CHANGE;
+        // A price no decision set carries no reason at all (PLAN.md §9 PRICE_CHANGE_WITHOUT_REASON).
+        ReasonCode changeReason = price.sourceDecisionId() == null ? null
+                : changed ? price.changeReason() : ReasonCode.NO_CHANGE;
         String priceHistoryId = IdFactory.priceHistory(product.skuId(), day);
-        sink.accept(TableRegistry.PRICE_HISTORY, new PriceHistory(priceHistoryId, product.skuId(), day,
-                price.listPrice(), price.shelfPrice(), previousListPrice, changeReason, price.sourceDecisionId(),
-                cost.costRecordId()));
+        PriceHistory row = new PriceHistory(priceHistoryId, product.skuId(), day, price.listPrice(), price.shelfPrice(),
+                previousListPrice, changeReason, price.sourceDecisionId(), cost.costRecordId());
+        sink.accept(TableRegistry.PRICE_HISTORY, row);
+        hooks.afterPriceHistory(row);
         state.setListPrice(price.listPrice());
 
         // 3. Demand and sales.

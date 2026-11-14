@@ -14,6 +14,7 @@ import com.pricingsim.domain.enums.ApplicationStatus;
 import com.pricingsim.domain.enums.Channel;
 import com.pricingsim.domain.enums.CustomerSegment;
 import com.pricingsim.domain.enums.OrderStatus;
+import com.pricingsim.domain.enums.ReasonCode;
 import com.pricingsim.domain.id.IdFactory;
 import com.pricingsim.domain.model.CostRecord;
 import com.pricingsim.domain.model.CustomerOrder;
@@ -91,14 +92,22 @@ public final class OrderGenerator {
                          int customer, List<PromotionOffer> coupons) {
     }
 
+    /** Coupon rejections that are stacking conflicts (the PROMO_STACK_VIOLATION eligibility, PLAN.md §9). */
+    public static final java.util.Set<ReasonCode> CONFLICT_REJECTIONS = java.util.EnumSet.of(
+            ReasonCode.PROMO_REJECTED_EXCLUSIVE, ReasonCode.PROMO_REJECTED_EXCLUDED_PAIR,
+            ReasonCode.PROMO_REJECTED_STACK_LIMIT, ReasonCode.PROMO_REJECTED_DISCOUNT_CAP);
+
     private final GenerationContext ctx;
     private final PromotionCatalog promotions;
     private final PricingPolicy policy;
     private final RowSink sink;
+    private final SimulationHooks hooks;
     private final int customerPool;
     private final Stats stats = new Stats();
 
-    public OrderGenerator(GenerationContext ctx, PromotionCatalog promotions, PricingPolicy policy, RowSink sink) {
+    public OrderGenerator(GenerationContext ctx, PromotionCatalog promotions, PricingPolicy policy, RowSink sink,
+                          SimulationHooks hooks) {
+        this.hooks = Objects.requireNonNull(hooks, "hooks");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.promotions = Objects.requireNonNull(promotions, "promotions");
         this.policy = Objects.requireNonNull(policy, "policy");
@@ -135,9 +144,55 @@ public final class OrderGenerator {
             index.add(i);
         }
         index.sort(Comparator.comparingInt((Integer i) -> drafts.get(i).secondOfDay()).thenComparingInt(i -> i));
+        int orderIndex = 0;
         for (int i : index) {
-            write(drafts.get(i), state.skuId(), day, price, cost, priceHistoryId);
+            write(drafts.get(i), state.skuId(), day, orderIndex++, price, cost, priceHistoryId);
         }
+    }
+
+    /**
+     * The evaluations with {@code forced} switched to APPLIED and every applied coupon's discount recomputed in the
+     * resolver's order (percentages first, then amounts, on the running amount after the seeded markdowns).
+     */
+    public static List<PromotionStackResolver.Evaluation> withForced(List<PromotionStackResolver.Evaluation> evaluations,
+            PromotionStackResolver.Evaluation forced, BigDecimal gross, BigDecimal seededTotal) {
+        List<com.pricingsim.pricing.PromotionOffer> offers = new ArrayList<>();
+        for (PromotionStackResolver.Evaluation e : evaluations) {
+            if (e.status() == ApplicationStatus.APPLIED || e.promotionId().equals(forced.promotionId())) {
+                offers.add(e.offer());
+            }
+        }
+        List<PromotionStackResolver.Applied> discounts = PromotionStackResolver.discounts(gross, seededTotal, offers);
+        List<PromotionStackResolver.Evaluation> out = new ArrayList<>(evaluations.size());
+        for (PromotionStackResolver.Evaluation e : evaluations) {
+            PromotionStackResolver.Applied a = discounts.stream()
+                    .filter(x -> x.offer().promotionId().equals(e.promotionId())).findFirst().orElse(null);
+            out.add(a == null ? e : new PromotionStackResolver.Evaluation(e.offer(), e.sequenceNo(),
+                    ApplicationStatus.APPLIED, ReasonCode.PROMO_APPLIED, a.discount()));
+        }
+        return out;
+    }
+
+    /**
+     * The first coupon rejected for a stacking conflict whose forced application still leaves a positive net amount,
+     * or null.
+     */
+    public static PromotionStackResolver.Evaluation forceableConflict(PromotionStackResolver.Resolution resolution,
+                                                                      BigDecimal gross, BigDecimal seededTotal) {
+        for (PromotionStackResolver.Evaluation e : resolution.evaluations()) {
+            if (e.status() == ApplicationStatus.REJECTED && CONFLICT_REJECTIONS.contains(e.reason())) {
+                BigDecimal discount = seededTotal;
+                for (PromotionStackResolver.Evaluation f : withForced(resolution.evaluations(), e, gross, seededTotal)) {
+                    if (f.status() == ApplicationStatus.APPLIED) {
+                        discount = discount.add(f.discount());
+                    }
+                }
+                if (gross.subtract(discount).signum() > 0) {
+                    return e;
+                }
+            }
+        }
+        return null;
     }
 
     private Draft draft(Random r, int quantity, OrderStatus status, String skuId, LocalDate day) {
@@ -166,8 +221,8 @@ public final class OrderGenerator {
         return new Draft(quantity, status, second, channel, segment, customer, coupons);
     }
 
-    private void write(Draft d, String skuId, LocalDate day, PriceSetter.DailyPrice price, CostRecord cost,
-                       String priceHistoryId) {
+    private void write(Draft d, String skuId, LocalDate day, int orderIndex, PriceSetter.DailyPrice price,
+                       CostRecord cost, String priceHistoryId) {
         String orderId = ctx.nextId(IdFactory.Sequence.ORDER, day.getYear());
         BigDecimal qty = BigDecimal.valueOf(d.quantity());
         BigDecimal gross = price.listPrice().multiply(qty);
@@ -178,6 +233,12 @@ public final class OrderGenerator {
         }
         PromotionStackResolver.Resolution res = PromotionStackResolver.resolve(new PromotionStackResolver.Request(
                 gross, seeded, d.coupons(), day, d.quantity(), false, policy));
+        BigDecimal seededTotal = PromotionStackResolver.total(seeded);
+        List<PromotionStackResolver.Evaluation> evaluations = res.evaluations();
+        PromotionStackResolver.Evaluation forced = hooks.couponToForce(skuId, day, orderIndex, res, gross, seededTotal);
+        if (forced != null) {
+            evaluations = withForced(evaluations, forced, gross, seededTotal);
+        }
 
         int seq = 0;
         BigDecimal discount = BigDecimal.ZERO.setScale(2);
@@ -186,7 +247,7 @@ public final class OrderGenerator {
                     false, ApplicationStatus.APPLIED, null, m.discount()));
             discount = discount.add(m.discount());
         }
-        for (PromotionStackResolver.Evaluation e : res.evaluations()) {
+        for (PromotionStackResolver.Evaluation e : evaluations) {
             boolean applied = e.status() == ApplicationStatus.APPLIED;
             sink.accept(TableRegistry.ORDER_PROMOTION, new OrderPromotion(orderId, e.promotionId(), ++seq, true,
                     e.status(), applied ? null : e.reason(), e.discount()));
@@ -203,10 +264,12 @@ public final class OrderGenerator {
             throw new IllegalStateException(orderId + ": non-positive net amount " + net);
         }
         Instant ts = day.atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(d.secondOfDay());
-        sink.accept(TableRegistry.CUSTOMER_ORDER, new CustomerOrder(orderId, ts, day, skuId,
+        CustomerOrder order = new CustomerOrder(orderId, ts, day, skuId,
                 IdFactory.customerRef(d.customer()), d.segment(), d.channel(), d.quantity(), priceHistoryId,
                 cost.costRecordId(), price.listPrice(), gross, discount, net, cost.landedCost(),
-                MarginCalculator.grossMarginAmount(net, d.quantity(), cost.landedCost()), d.status()));
+                MarginCalculator.grossMarginAmount(net, d.quantity(), cost.landedCost()), d.status());
+        sink.accept(TableRegistry.CUSTOMER_ORDER, order);
+        hooks.afterOrder(order, forced == null ? null : forced.promotionId());
         stats.orders++;
         if (d.status() == OrderStatus.CANCELLED) {
             stats.cancelled++;

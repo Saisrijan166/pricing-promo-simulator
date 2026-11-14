@@ -102,13 +102,15 @@ public final class EnginePriceSetter implements PriceSetter {
     private final Map<String, List<CompetitorObservation>> observations;
     private final PromotionCatalog promotions;
     private final RowSink sink;
+    private final SimulationHooks hooks;
     private final List<PriceDecisionStatusEvent> dayEvents = new ArrayList<>();
     private final Map<String, SkuState> heldBySku = new java.util.TreeMap<>();
     private final Stats stats = new Stats();
 
     public EnginePriceSetter(GenerationContext ctx, PricingEngine engine,
                              Map<String, List<CompetitorObservation>> observations, PromotionCatalog promotions,
-                             RowSink sink) {
+                             RowSink sink, SimulationHooks hooks) {
+        this.hooks = Objects.requireNonNull(hooks, "hooks");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.engine = Objects.requireNonNull(engine, "engine");
         this.observations = Objects.requireNonNull(observations, "observations");
@@ -124,6 +126,10 @@ public final class EnginePriceSetter implements PriceSetter {
     public DailyPrice priceFor(SkuState state, LocalDate day, CostRecord cost, int stockAtDecision) {
         DecisionTrigger trigger = trigger(state, day, cost);
         if (trigger == null) {
+            DailyPrice replacement = hooks.nonDecisionDay(state, day, state.currentPrice());
+            if (replacement != null) {
+                state.setCurrentPrice(replacement);
+            }
             return state.currentPrice();
         }
         Product product = state.product();
@@ -145,9 +151,12 @@ public final class EnginePriceSetter implements PriceSetter {
                 previous == null ? null : previous.decisionId(), stockAtDecision,
                 state.unitsSoldLast(7), state.historyDaysLast(7), state.unitsSoldLast(28), state.historyDaysLast(28),
                 visibleObservations(product.skuId(), ts), promotions.markdownsFor(product.skuId()), manualTarget);
-        PricingResult result = engine.price(context);
+        PricingResult baseline = engine.price(context);
+        PricingEngine.Faults faults = hooks.decisionFaults(trigger, context, baseline);
+        PricingResult result = faults == null ? baseline : engine.price(context, faults);
 
         String decisionId = ctx.nextId(IdFactory.Sequence.DECISION, day.getYear());
+        hooks.afterDecision(context, baseline, result, decisionId);
         Instant appliedAt = statusEvents(decisionId, result, ts, r);
         if (previous != null) {
             dayEvents.add(new PriceDecisionStatusEvent(null, previous.decisionId(), DecisionStatus.APPLIED,

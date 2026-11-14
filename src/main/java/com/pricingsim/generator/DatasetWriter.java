@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import com.pricingsim.config.ScaleProfile;
+import com.pricingsim.generator.anomaly.GroundTruthFiles;
+import com.pricingsim.generator.anomaly.GroundTruthRecord;
 import com.pricingsim.generator.sink.CsvRowSink;
 import com.pricingsim.io.ChecksumService;
 import com.pricingsim.io.CsvDatasetReader;
@@ -58,6 +60,12 @@ public final class DatasetWriter {
                 columns.put(path, table.columns().size());
             }
         }
+        Path labels = outDir.resolve(LABELS_DIR);
+        GroundTruthFiles.write(labels, result.groundTruth(), settings.seed(), settings.scaleName());
+        long labelled = result.groundTruth().size();
+        rows.put(LABELS_DIR + "/" + GroundTruthFiles.CSV_FILE, labelled);
+        columns.put(LABELS_DIR + "/" + GroundTruthFiles.CSV_FILE, GroundTruthRecord.COLUMNS.size());
+        rows.put(LABELS_DIR + "/" + GroundTruthFiles.JSON_FILE, labelled);
         String fingerprint = ManifestWriter.write(outDir, runInfo(settings), rows, columns);
         return new Output(outDir, result, fingerprint);
     }
