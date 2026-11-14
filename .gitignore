@@ -1,0 +1,32 @@
+# Build output
+target/
+*.class
+
+# Generated datasets and run output (reproducible from the seed; see PLAN.md §11)
+out/
+
+# Local configuration (copy from .env.example)
+.env
+
+# Logs
+*.log
+logs/
+
+# IDE / editor
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven wrapper binary (the only-script wrapper downloads Maven itself)
+.mvn/wrapper/maven-wrapper.jar

@@ -1,0 +1,15 @@
+# Normalise line endings so data-file checksums are identical on every platform (PLAN.md §3, §11).
+* text=auto
+
+*.csv     text eol=lf
+*.sql     text eol=lf
+*.json    text eol=lf
+*.jsonl   text eol=lf
+*.sh      text eol=lf
+*.sha256  text eol=lf
+mvnw      text eol=lf
+*.cmd     text eol=crlf
+
+*.jar     binary
+*.zip     binary
+*.png     binary
