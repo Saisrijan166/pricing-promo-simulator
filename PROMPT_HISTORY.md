@@ -443,8 +443,71 @@ Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 steps 1
 
 This is `BUILD_PROMPTS.md` Prompt 4, unchanged.
 
-**What AI produced:** _In progress. Completed in the last commit of this prompt._
+**What AI produced:** Seven commits: PLAN §16 steps 10–14 and 16, plus the data/sample part of step 17.
+- **io:** `ChecksumService`, `ManifestWriter` (`manifest.json` + `checksums.sha256`), `CsvDatasetReader`,
+  `JsonExporter` (JSON Lines above 100k rows) and `SqlExporter` (`schema.sql` + `seed.sql`). `generate` now writes
+  `csv/`, `labels/`, the manifest and the checksums.
+- **generator/anomaly:**
+  - A baseline dry run collects eligible records (`CandidateCollector`).
+  - `AnomalyPlanner` picks exactly N per type from the `anomaly` streams, at most one per SKU.
+  - `AnomalyInjector` injects the 5 PLAN §9 types through `SimulationHooks` and `PricingEngine.Faults`, with
+    consistent arithmetic.
+  - `GroundTruthFiles` writes `labels/ground_truth.csv/.json`.
+- **persistence:** `BulkLoader` (one transaction; TRUNCATE … CASCADE / DELETE; batches of 5,000; registry tables only)
+  with `load`, plus `RunDao` (reproducible run IDs) and `Dialect`.
+- **validation:** `ValidationRunner` with 183 checks in all 11 PLAN §10 categories (PK, FK, enum, ID format and
+  duplicates generated from `TableRegistry`), `ValidationSummaryWriter` (JSON + Markdown) and `validate` (exit 1 on a
+  structural FAIL).
+- **detection:** the 5 rule detectors in `detection.rules` (shared with the BUSINESS_RULE checks),
+  `OperationalExceptionCollector`, `ExceptionDetector` (`detected_exception` + CSV) and `detect`.
+- **evaluation:** `GroundTruthEvaluator` (per-type, micro and macro P/R/F1), `DatasetMetricsCalculator` (PLAN §7.5
+  bands), `EvaluationReportWriter` and `evaluate`.
+- **Commands and scripts:** `export`, `repro-check` and `run-all`; `scripts/run_all.sh` and `scripts/repro_check.sh`
+  (writes `docs/evidence/reproducibility_report.md`).
+- **Docs:** `docs/anomalies_and_ground_truth.md`, `docs/validation.md` (every check ID) and `docs/provenance.md`.
+- **Data:** `data/sample/` holds the starter output: csv, json, sql, labels, manifest, checksums, validation summary,
+  detected exceptions and evaluation metrics.
+- **Tests:**
+  - `AnomalyInjectionTest` (8), `NoLeakageTest` (5), `CsvRoundTripTest` (5).
+  - Integration: `BulkLoaderIT` (3), `ValidationRunnerIT` (10, with 8 `fixtures/broken/*.properties`),
+    `EndToEndPipelineIT` (2), `GeneratorDeterminismIT` (1), `ExportIT` (1).
 
-**What I did with it:** _Pending._
+Decisions and deviations the AI flagged for review:
+1. **Two-pass anomaly planning.** PLAN §9 says targets are chosen up front "among records that are eligible at
+   baseline". The generator runs the baseline once with rows discarded to find them, then the real run injects. This
+   roughly doubles generate time when anomalies are requested. With one anomaly per SKU, every other SKU's data
+   equals the clean run; `AnomalyInjectionTest` checks this.
+2. **Faults in the engine.** The engine has an explicit `Faults` parameter (forced price, stale-as-fresh, margin on
+   list). The anomalies come from the real engine with consistent arithmetic, rather than from editing rows
+   afterwards. The generator baseline and the API always use `Faults.NONE`.
+3. **Business-rule code lives in detection.** The five rules exist once, in `detection.rules`. The validator's
+   BR-001..005 run them, so validation depends on detection; detection and validation never touch
+   `generator.anomaly` or `labels/`.
+4. **Validation layout.** PLAN §3 lists one class per category; registry-driven categories are grouped in
+   `RegistryChecks`. Coverage, floor, velocity and days-of-cover checks run in Java over streamed rows; all other
+   checks are SQL that runs on both PostgreSQL and H2.
+5. **Fixtures are patches.** `fixtures/broken/` holds declarative patches on a freshly generated tiny dataset
+   (properties files), not committed CSV datasets. Where the DB would reject the broken row, the fixture drops that
+   constraint first.
+6. **MARGIN_BEFORE_DISCOUNT labels.** `baseline_value` is the correct net-basis margin of the stored net price,
+   because the baseline record's own margin can equal the injected value.
+7. **Vacuous scores.** Precision is 1.0 when nothing was detected and recall is 1.0 when nothing was labelled, so a
+   clean run scores 1.0 / 1.0 with zero counts.
+8. **Load speed.** Starter takes about 8 s on the local Docker Postgres, so a full-scale load may exceed the PLAN
+   target of under 6 minutes. Not measured yet; that is P8.
+9. **Committed size.** `data/sample/` is about 48 MB (json 24 MB, sql 13 MB, csv 11 MB). No file is over 50 MB.
 
-**Verification:** _Pending._
+**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–3 and 9
+above.
+
+**Verification:**
+- `./mvnw clean verify` → BUILD SUCCESS, 322 tests (298 unit + 24 integration), 0 failures. Each of the 6 code commits
+  was verified with `./mvnw clean verify` before it was made.
+- `./scripts/run_all.sh starter` → exit 0. `validation_summary.md`: 183 checks, **0 structural failures, 25
+  business-rule findings** (5 per type).
+- `evaluation_metrics.json`: precision = recall = 1.0000 for each of the 5 issue types (5 TP, 0 FP, 0 FN each).
+  Realism: 6 of 7 bands OK; the stale observation share (0.212 vs band 0.05–0.15) is WARN, as flagged in #05.
+- `./scripts/repro_check.sh starter` → "Same seed 20261022: IDENTICAL", "Different seed 20261023: DIFFERENT".
+- `out/starter` copied to `data/sample/` (without `run_log.json`, which holds wall-clock time), then
+  `cd data/sample && sha256sum -c checksums.sha256` → all 18 files OK.
+- `sql/schema.sql` + `sql/seed.sql` loaded into a fresh PostgreSQL database with matching row counts.
