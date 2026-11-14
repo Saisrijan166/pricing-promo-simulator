@@ -43,7 +43,7 @@ import com.pricingsim.pricing.PromotionOffer;
  * <ul>
  *   <li>60% markdowns (shelf-level, channel ALL), Monday to Sunday for 1–4 whole weeks; 40% coupons (customer-presented,
  *       any channel, 3–21 days, with a coupon code). The mix is apportioned exactly.</li>
- *   <li>Targets: a SKU list from one category or from any category, 5–150 SKUs. Markdown lists are small (about 0.1–0.4%
+ *   <li>Targets: a SKU list from one category or from any category, 5–150 SKUs. Markdown lists are small (about 0.12–0.45%
  *       of SKUs, at least 5) so that 15–30% of SKU-days carry a markdown (PLAN.md §7.5); coupon lists are larger
  *       (20–150).</li>
  *   <li>Rules: every promotion has MAX_STACK_COUNT (2 or 3) and MAX_COMBINED_DISCOUNT_PCT (0.30–0.45); 30% are
@@ -188,7 +188,7 @@ public final class PromotionGenerator {
         int couponOffset = Distributions.uniformInt(r, 0, ctx.profile().days() - 1);
         int couponDays = Distributions.uniformInt(r, 3, 21);
         double sizeU = r.nextDouble();
-        double markdownShare = Distributions.uniform(r, 0.001, 0.004);
+        double markdownShare = Distributions.uniform(r, 0.0012, 0.0045);
         BigDecimal pct = Distributions.choice(r, d.markdown() ? MARKDOWN_PCTS : COUPON_PCTS);
         double amountRatio = d.markdown() ? Distributions.uniform(r, 0.05, 0.15) : Distributions.uniform(r, 0.05, 0.12);
         double channelU = r.nextDouble();
