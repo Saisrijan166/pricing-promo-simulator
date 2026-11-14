@@ -32,6 +32,8 @@ public class PricingSimApplication {
         boolean cliMode = isCliMode(args);
         if (cliMode) {
             app.setWebApplicationType(WebApplicationType.NONE);
+            // Quiet CLI output: only warnings from Spring; command output and Flyway's own INFO lines stay visible.
+            app.setDefaultProperties(java.util.Map.of("logging.level.root", "WARN"));
             if (OFFLINE_COMMANDS.contains(args[0])) {
                 app.setAdditionalProfiles("offline");
             }

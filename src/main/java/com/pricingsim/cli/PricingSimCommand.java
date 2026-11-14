@@ -16,7 +16,8 @@ import picocli.CommandLine.Spec;
         version = "pricing-promo-simulator",
         description = "Pricing & promotion simulator: deterministic synthetic data generator and pipeline.",
         subcommands = {GenerateCommand.class, LoadCommand.class, ValidateCommand.class,
-                DetectCommand.class, EvaluateCommand.class})
+                DetectCommand.class, EvaluateCommand.class, ExportCommand.class, ReproCheckCommand.class,
+                RunAllCommand.class})
 public class PricingSimCommand implements Runnable {
 
     @Spec
