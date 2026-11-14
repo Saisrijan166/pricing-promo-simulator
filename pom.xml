@@ -105,6 +105,18 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <!-- Implementation-Version in the jar manifest: recorded as the generator version in manifest.json -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
       <!-- Unit tests: *Test -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -117,6 +129,7 @@
             <exclude>**/*IT.java</exclude>
           </excludes>
           <trimStackTrace>false</trimStackTrace>
+          <argLine>-Duser.timezone=UTC</argLine>
         </configuration>
       </plugin>
       <!-- Integration tests: *IT (H2) -->
@@ -128,6 +141,7 @@
             <include>**/*IT.java</include>
           </includes>
           <trimStackTrace>false</trimStackTrace>
+          <argLine>-Duser.timezone=UTC</argLine>
         </configuration>
         <executions>
           <execution>

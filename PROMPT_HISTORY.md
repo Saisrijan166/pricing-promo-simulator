@@ -398,3 +398,53 @@ above.
 - A second generation into `out/starter2`, then `diff -r out/starter out/starter2` → no output.
 - Full scale (`--scale full`, `-Xmx2g`): exit 0 in about 63 s. 147,138 decisions, 941,692 orders,
   COMPETITOR_DATA_STALE 9,369, GUARDRAIL_CONFLICT_ESCALATED 740, stockouts 4.89%, REJECTED coupons 12,532.
+
+---
+
+### #06 — 2026-11-14 10:13 UTC — Claude Code (Opus 5.5) — Phases P4–P6 Anomalies, ground truth, load, validation, detection, evaluation, export
+
+**Prompt (verbatim):**
+
+```text
+Read PLAN.md (§9, §10, §11, §12). Implement phases P4–P6 on top of the existing generator and pricing engine.
+
+Deliverables:
+1. generator/anomaly: AnomalyPlanner, AnomalyPlan, AnomalyInjector and GroundTruthRecord.
+   Inject the 5 issue types exactly as the PLAN §9 table specifies, through simulator hooks, keeping all arithmetic consistent.
+   Write labels/ground_truth.csv and labels/ground_truth.json with the PLAN §9 columns.
+   --anomalies-per-type 0 must produce a clean dataset.
+2. io: ChecksumService, ManifestWriter (manifest.json + checksums.sha256 per PLAN §11), CsvDatasetReader,
+   JsonExporter (JSON Lines above 100k rows) and SqlExporter (schema.sql + seed.sql).
+3. persistence/BulkLoader + LoadCommand: JdbcTemplate batchUpdate with batch size 5000 and reWriteBatchedInserts=true,
+   TRUNCATE first, TableRegistry order. It never loads labels/.
+4. validation: every category in PLAN §10, generated from TableRegistry where possible.
+   ValidationSummaryWriter writes JSON and Markdown. ValidateCommand exits non-zero on any structural FAIL.
+5. detection: ExceptionDetector, the 5 rule detectors and OperationalExceptionCollector, plus DetectCommand.
+   The detection code must not reference generator.anomaly or labels/.
+6. evaluation: GroundTruthEvaluator, DatasetMetricsCalculator (PLAN §7.5 bands) and EvaluateCommand.
+7. ExportCommand, ReproCheckCommand and RunAllCommand.
+   Scripts:
+   - scripts/run_all.sh: docker up → build → generate → load → validate → detect → evaluate → export.
+   - scripts/repro_check.sh: same seed twice → IDENTICAL; different seed → DIFFERENT; writes docs/evidence/reproducibility_report.md.
+8. docs/anomalies_and_ground_truth.md, docs/validation.md and docs/provenance.md.
+9. Tests: AnomalyInjectionTest, NoLeakageTest, CsvRoundTripTest, BulkLoaderIT,
+   ValidationRunnerIT (src/test/resources/fixtures/broken/* datasets, each breaking exactly one rule),
+   EndToEndPipelineIT and GeneratorDeterminismIT.
+
+Done when:
+- ./mvnw clean verify → all tests green.
+- `./scripts/run_all.sh starter` exits 0. validation_summary.md shows 0 structural failures and 25 business-rule findings (5 per type).
+- evaluation_metrics.json shows precision = recall = 1.0 for each of the 5 issue types.
+- `./scripts/repro_check.sh starter` prints IDENTICAL, and the different-seed check prints DIFFERENT.
+- out/starter is copied to data/sample/, and `cd data/sample && sha256sum -c checksums.sha256` passes.
+
+Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 steps 10–14, 16, and the data/sample part of 17). Do not push yet.
+```
+
+This is `BUILD_PROMPTS.md` Prompt 4, unchanged.
+
+**What AI produced:** _In progress. Completed in the last commit of this prompt._
+
+**What I did with it:** _Pending._
+
+**Verification:** _Pending._

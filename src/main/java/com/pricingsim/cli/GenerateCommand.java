@@ -2,14 +2,12 @@ package com.pricingsim.cli;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
@@ -22,7 +20,7 @@ import com.pricingsim.domain.enums.ReasonCode;
 import com.pricingsim.generator.sim.EnginePriceSetter;
 import com.pricingsim.generator.sim.MarketSimulator;
 import com.pricingsim.generator.sim.OrderGenerator;
-import com.pricingsim.generator.sink.CsvRowSink;
+import com.pricingsim.generator.DatasetWriter;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -30,7 +28,8 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Spec;
 
 /**
- * {@code generate}: writes the dataset as CSV to {@code <out>/csv/<table>.csv} (PLAN.md §11). Runs under the
+ * {@code generate}: writes the dataset to {@code <out>}: {@code csv/<table>.csv}, {@code labels/}, {@code manifest.json}
+ * and {@code checksums.sha256} (PLAN.md §11, see {@link DatasetWriter}). Runs under the
  * {@code offline} profile, so it needs no database. The output depends only on the seed and the scale settings, so
  * generating twice into different directories gives byte-identical files.
  */
@@ -39,8 +38,6 @@ import picocli.CommandLine.Spec;
         description = "Generate the synthetic dataset as CSV (no database needed).")
 public class GenerateCommand implements Callable<Integer> {
 
-    /** Sub-folder of the output directory that holds the CSV files. */
-    public static final String CSV_DIR = "csv";
 
     @Mixin
     ScaleOptions scaleOptions = new ScaleOptions();
@@ -59,14 +56,11 @@ public class GenerateCommand implements Callable<Integer> {
     @Override
     public Integer call() throws IOException {
         PrintWriter out = spec.commandLine().getOut();
-        List<String> commandLine = new ArrayList<>();
-        commandLine.add("generate");
-        commandLine.addAll(spec.commandLine().getParseResult().originalArgs());
+        // originalArgs() holds the whole command line, including the subcommand name.
+        List<String> commandLine = new ArrayList<>(spec.commandLine().getParseResult().originalArgs());
 
         GenerationSettings settings = scaleOptions.toSettings(properties, policyProperties.toPolicy(), commandLine);
         Path outDir = scaleOptions.outputDirectory(properties);
-        Path csvDir = outDir.resolve(CSV_DIR);
-        clearCsvDirectory(csvDir);
 
         ScaleProfile p = settings.profile();
         out.printf("Generating scale=%s seed=%d skus=%d days=%d (%s to %s) promotions=%d anomalies-per-type=%d"
@@ -76,10 +70,8 @@ public class GenerateCommand implements Callable<Integer> {
         out.println("Note: anomalies-per-type is recorded; anomaly injection is added in a later step.");
 
         long started = System.nanoTime(); // timing for the console only; never written to data
-        DatasetGenerator.Result result;
-        try (CsvRowSink sink = new CsvRowSink(csvDir)) {
-            result = new DatasetGenerator().generate(settings, sink);
-        }
+        DatasetWriter.Output output = DatasetWriter.write(settings, outDir);
+        DatasetGenerator.Result result = output.result();
         long elapsedMs = (System.nanoTime() - started) / 1_000_000;
 
         out.println();
@@ -88,7 +80,8 @@ public class GenerateCommand implements Callable<Integer> {
             out.printf("%-26s %12d%n", e.getKey(), e.getValue());
         }
         printSummary(out, result);
-        out.printf("%nWrote %s in %d ms%n", csvDir, elapsedMs);
+        out.printf("%nDataset fingerprint %s%n", output.fingerprint());
+        out.printf("Wrote %s (csv/, labels/, manifest.json, checksums.sha256) in %d ms%n", outDir, elapsedMs);
         out.flush();
         return 0;
     }
@@ -113,19 +106,5 @@ public class GenerateCommand implements Callable<Integer> {
         out.printf(l, "  %-32s %10d (%.2f%% of SKU-days)%n", "Stockout days", s.stockoutDays(),
                 s.skuDays() == 0 ? 0.0 : 100.0 * s.stockoutDays() / s.skuDays());
         out.printf(l, "  %-32s %10d%n", "REJECTED coupons", o.couponsRejected());
-    }
-
-    /** Removes CSV files left by a previous run, so the directory holds exactly this run's tables. */
-    static void clearCsvDirectory(Path csvDir) throws IOException {
-        if (!Files.isDirectory(csvDir)) {
-            return;
-        }
-        try (Stream<Path> files = Files.list(csvDir)) {
-            for (Path file : files.sorted().toList()) {
-                if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".csv")) {
-                    Files.delete(file);
-                }
-            }
-        }
     }
 }

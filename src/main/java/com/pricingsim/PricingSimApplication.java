@@ -1,6 +1,7 @@
 package com.pricingsim;
 
 import java.util.Set;
+import java.util.TimeZone;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
@@ -21,9 +22,12 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 public class PricingSimApplication {
 
     /** CLI commands that must run without a database (PLAN.md §2 trade-offs, §3). */
-    static final Set<String> OFFLINE_COMMANDS = Set.of("generate", "repro-check");
+    static final Set<String> OFFLINE_COMMANDS = Set.of("generate", "repro-check", "export");
 
     public static void main(String[] args) {
+        // All business dates are UTC dates (PLAN.md §2). PgJDBC sends the JVM time zone as the session time zone, so a
+        // UTC default keeps SQL date casts of TIMESTAMPTZ columns on UTC.
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         SpringApplication app = new SpringApplication(PricingSimApplication.class);
         boolean cliMode = isCliMode(args);
         if (cliMode) {
