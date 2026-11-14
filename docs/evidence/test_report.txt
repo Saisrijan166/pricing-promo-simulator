@@ -1,0 +1,42 @@
+./mvnw clean verify — 14-11-2026 12:07 UTC, openjdk version "21.0.13.0.3" 2026-10-24
+Result: BUILD SUCCESS
+Total: 338 tests, 0 failures, 0 errors, 0 skipped (299 unit via Surefire, 39 integration via Failsafe on H2)
+
+Unit tests (Surefire):
+  domain.id.IdFactoryTest: 28 tests, 0 failures, 0 errors
+  generator.AnomalyInjectionTest: 8 tests, 0 failures, 0 errors
+  generator.DerivedValuesTest: 17 tests, 0 failures, 0 errors
+  generator.GeneratorDeterminismTest: 4 tests, 0 failures, 0 errors
+  generator.GeneratorScaleTest: 11 tests, 0 failures, 0 errors
+  generator.GeneratorSourceRulesTest: 1 tests, 0 failures, 0 errors
+  generator.NoLeakageTest: 5 tests, 0 failures, 0 errors
+  generator.rng.DistributionsTest: 19 tests, 0 failures, 0 errors
+  generator.rng.RandomStreamsTest: 7 tests, 0 failures, 0 errors
+  io.CsvRoundTripTest: 5 tests, 0 failures, 0 errors
+  io.TableRegistryTest: 98 tests, 0 failures, 0 errors
+  pricing.CompetitorReferenceResolverTest: 9 tests, 0 failures, 0 errors
+  pricing.DemandSignalCalculatorTest: 6 tests, 0 failures, 0 errors
+  pricing.GoldenScenariosTest: 20 tests, 0 failures, 0 errors
+  pricing.GuardrailCalculatorTest: 7 tests, 0 failures, 0 errors
+  pricing.MarginCalculatorTest: 6 tests, 0 failures, 0 errors
+  pricing.PricePointRounderTest: 16 tests, 0 failures, 0 errors
+  pricing.PricingEngineTest: 21 tests, 0 failures, 0 errors
+  pricing.PromotionStackResolverTest: 11 tests, 0 failures, 0 errors
+
+Integration tests (Failsafe):
+  api.DecisionControllerIT: 6 tests, 0 failures, 0 errors
+  api.ExceptionControllerIT: 4 tests, 0 failures, 0 errors
+  api.PricingControllerIT: 4 tests, 0 failures, 0 errors
+  db.FlywayMigrationIT: 7 tests, 0 failures, 0 errors
+  EndToEndPipelineIT: 2 tests, 0 failures, 0 errors
+  EngineReplayIT: 1 tests, 0 failures, 0 errors
+  generator.GeneratorDeterminismIT: 1 tests, 0 failures, 0 errors
+  io.ExportIT: 1 tests, 0 failures, 0 errors
+  persistence.BulkLoaderIT: 3 tests, 0 failures, 0 errors
+  validation.ValidationRunnerIT: 10 tests, 0 failures, 0 errors
+
+Maven summary lines:
+  Tests run: 299, Failures: 0, Errors: 0, Skipped: 0
+  Tests run: 39, Failures: 0, Errors: 0, Skipped: 0
+  BUILD SUCCESS
+  Total time:  02:37 min

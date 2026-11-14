@@ -1,0 +1,31 @@
+{
+  "generator": {"name": "pricing-promo-simulator", "version": "0.1.0-SNAPSHOT", "git_commit": "ef421996c0fa029ad584040531f78978f87b03bb"},
+  "command_line": "run-all --scale full --out out/full --formats json",
+  "seed": 20261022,
+  "scale": {"name": "full", "skus": 5000, "days": 180, "promotions": 2000, "start_date": "2026-01-01", "end_date": "2026-06-29", "anomalies_per_type": 50, "competitors": 3},
+  "rule_version": "pricing-rules-v1",
+  "reference_ts": "2026-07-01T00:00:00Z",
+  "pricing_policy": {"freshness_hours": 72, "min_match_confidence": 0.80, "max_step_change_pct": 0.08, "auto_approve_max_change_pct": 0.10, "overstock_days": 60, "low_cover_days": 7, "high_velocity_ratio": 1.2, "default_max_stack": 2, "default_max_combined_discount": 0.40},
+  "files": [
+    {"path": "csv/competitor_observation.csv", "rows": 534705, "columns": 9, "sha256": "e6891f1836a39bf8275d61263e43f686a9ee2d1e55560d7fad08bec28f8d414f"},
+    {"path": "csv/cost_record.csv", "rows": 29000, "columns": 10, "sha256": "cbf371976c053a71bbf4d8a2f042bc320e797acd5c8f9d979deb956f33dc985e"},
+    {"path": "csv/customer_order.csv", "rows": 944948, "columns": 17, "sha256": "198763e0a42e0ad60c875e82f8c3c8079a5abbcd4bbb4291ef4999090d79777d"},
+    {"path": "csv/inventory_snapshot.csv", "rows": 864016, "columns": 13, "sha256": "84a6ff08279969186829b2c1a69ce11060409beb2ec8e3f9b98027ce96ad6355"},
+    {"path": "csv/order_promotion.csv", "rows": 242334, "columns": 7, "sha256": "cb8da2df5b1f3373201fbe927fddd3aefd3e9939e0ba181ac3b44ddd5212ef24"},
+    {"path": "csv/price_decision.csv", "rows": 147339, "columns": 32, "sha256": "c2bd6cbf477266bfdd613180476032d3541ddc6db4c8d9bf71a849ca2921ca94"},
+    {"path": "csv/price_decision_observation.csv", "rows": 305541, "columns": 4, "sha256": "8dd58433761f2f7ad6c867f4b82773bd6b9557fb5dfa1f73084b6cb468b89960"},
+    {"path": "csv/price_decision_promotion.csv", "rows": 45385, "columns": 5, "sha256": "683a66c96b6cacde1084a6cdcbf9c8707b8df1aeec19ba2ca14f263b45aa1804"},
+    {"path": "csv/price_decision_status_event.csv", "rows": 585552, "columns": 7, "sha256": "ef6d6d0b36c60e3ee866d18b608da6913d0bd5553e9c37a1f28cd5d446bee312"},
+    {"path": "csv/price_history.csv", "rows": 864016, "columns": 9, "sha256": "a8d14a14e9ed2d0a691011847dd2efbfabd44fd3cd01b3c7f3299454465591d8"},
+    {"path": "csv/product.csv", "rows": 5000, "columns": 17, "sha256": "4b4f0597db06eb103e3ebe04c38ab32c7a9f714c7191eb0c361a23745508b482"},
+    {"path": "csv/product_status_event.csv", "rows": 5379, "columns": 7, "sha256": "502c9c8df2690aba9ca92511d20559a02c990a4ca8ba6ac99510199d8f74d678"},
+    {"path": "csv/promotion.csv", "rows": 2000, "columns": 14, "sha256": "27761f8dc0dd3a84b287fe42f1ae1263cac09c6b38e5b798485809ce1d439392"},
+    {"path": "csv/promotion_product.csv", "rows": 74320, "columns": 3, "sha256": "b0d007832719e2dd894c05c290f45ebe09b40e4cd399a7c469f1279392d1961b"},
+    {"path": "csv/promotion_rule.csv", "rows": 5252, "columns": 7, "sha256": "449b2bdb6176d770b6f4c56067fc7f3324dfe7371bfc3dadaa53c7fe2253eeb3"},
+    {"path": "csv/promotion_status_event.csv", "rows": 7744, "columns": 7, "sha256": "1d208384777c5eb1add32d5ee3512a3282f376a10413eb98064f71e515d9d5d0"},
+    {"path": "labels/ground_truth.csv", "rows": 250, "columns": 13, "sha256": "ddcd173066983c8937e8f988a2c34572698e24ea1c1cabbece97ca6181694be3"},
+    {"path": "labels/ground_truth.json", "rows": 250, "columns": null, "sha256": "1f02739c8956d089fccd32874c058bbbd7b09d140690b53ac394ca442c868154"}
+  ],
+  "dataset_fingerprint": "1a275c7351db18670ba27958c174590c1ed76d3d0853fcac19cd25e2b4907334",
+  "provenance": "100% synthetic data generated from a fixed seed; no external, scraped or personal data; brands, products and competitors are fictional (see docs/provenance.md)."
+}

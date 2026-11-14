@@ -1,0 +1,18 @@
+# Full-scale run: java -Xmx2g -jar target/pricing-sim.jar run-all --scale full --out out/full --formats json
+# 14-11-2026 UTC on 4 CPUs, 19 GB RAM, openjdk version "21.0.13.0.3" 2026-10-24, PostgreSQL 16 in Docker
+==> generate
+   (73071 ms)
+==> load
+   (449404 ms)
+==> validate
+Validation: 183 checks, 178 passed, 0 failed, 5 warnings; business-rule findings {PRICE_BELOW_FLOOR=50, PROMO_STACK_VIOLATION=50, STALE_OBSERVATION_AS_CURRENT=50, MARGIN_BEFORE_DISCOUNT=50, PRICE_CHANGE_WITHOUT_REASON=50}
+   (72144 ms)
+==> detect
+   (14645 ms)
+==> evaluate
+   (2281 ms)
+==> export
+   (26092 ms)
+Elapsed (wall clock) time (h:mm:ss or m:ss): 10:44.72
+Maximum resident set size (kbytes): 1797760
+exit=0

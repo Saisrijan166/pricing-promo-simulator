@@ -20,7 +20,7 @@ curl -s -X POST http://localhost:8080/api/v1/pricing/simulate -H 'Content-Type: 
     "costRecordId": "COST-SKU-000143-2026-02",
     "landedCost": 139.96,
     "prevListPrice": 249.00,
-    "previousDecisionId": "DEC-2026-000954",
+    "previousDecisionId": "DEC-2026-000953",
     "onHandUnits": 0,
     "demand7dUnits": 3,
     "demand28dUnits": 10,
@@ -168,22 +168,22 @@ curl -s -X POST http://localhost:8080/api/v1/pricing/simulate -H 'Content-Type: 
 }
 ```
 
-## GET /api/v1/decisions/DEC-2026-001222/explain
+## GET /api/v1/decisions/DEC-2026-001221/explain
 
 ```bash
-curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
+curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001221/explain
 ```
 
 ```json
 {
   "decision": {
-    "decision_id": "DEC-2026-001222",
+    "decision_id": "DEC-2026-001221",
     "sku_id": "SKU-000143",
     "decision_ts": "2026-02-02T06:00:00Z",
     "effective_date": "2026-02-02",
     "trigger": "WEEKLY_REVIEW",
     "decision_source": "MANUAL_OVERRIDE",
-    "previous_decision_id": "DEC-2026-000954",
+    "previous_decision_id": "DEC-2026-000953",
     "cost_record_id": "COST-SKU-000143-2026-02",
     "landed_cost": 139.96,
     "prev_list_price": 249.00,
@@ -382,7 +382,7 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
   },
   "statusEvents": [
     {
-      "event_id": "DEV-2026-0004279",
+      "event_id": "DEV-2026-0004275",
       "from_status": null,
       "to_status": "PROPOSED",
       "event_ts": "2026-02-02T06:00:00Z",
@@ -390,7 +390,7 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
       "note": "Analyst price override"
     },
     {
-      "event_id": "DEV-2026-0004472",
+      "event_id": "DEV-2026-0004468",
       "from_status": "PROPOSED",
       "to_status": "ESCALATED",
       "event_ts": "2026-02-02T06:00:01Z",
@@ -398,7 +398,7 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
       "note": "Change above auto-approve limit"
     },
     {
-      "event_id": "DEV-2026-0004911",
+      "event_id": "DEV-2026-0004907",
       "from_status": "ESCALATED",
       "to_status": "APPROVED",
       "event_ts": "2026-02-02T06:29:00Z",
@@ -406,7 +406,7 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
       "note": "Approved after review"
     },
     {
-      "event_id": "DEV-2026-0004913",
+      "event_id": "DEV-2026-0004909",
       "from_status": "APPROVED",
       "to_status": "APPLIED",
       "event_ts": "2026-02-02T06:29:01Z",
@@ -414,24 +414,24 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
       "note": "Price applied"
     },
     {
-      "event_id": "DEV-2026-0004925",
+      "event_id": "DEV-2026-0004921",
       "from_status": "APPLIED",
       "to_status": "SUPERSEDED",
       "event_ts": "2026-02-05T07:06:01Z",
       "actor_role": "SYSTEM",
-      "note": "Superseded by DEC-2026-001278"
+      "note": "Superseded by DEC-2026-001277"
     }
   ],
-  "previousDecisionId": "DEC-2026-000954",
-  "nextDecisionId": "DEC-2026-001278",
+  "previousDecisionId": "DEC-2026-000953",
+  "nextDecisionId": "DEC-2026-001277",
   "detectedExceptions": [
     {
       "exception_id": "EXC-2026-0000001",
-      "run_id": "DETECT-56e948afd3f5cb08",
+      "run_id": "DETECT-6f47106c3a1ce835",
       "category": "ANOMALY",
       "issue_type": "PRICE_BELOW_FLOOR",
       "entity_type": "price_decision",
-      "entity_id": "DEC-2026-001222",
+      "entity_id": "DEC-2026-001221",
       "sku_id": "SKU-000143",
       "event_date": "2026-02-02",
       "related_ids": "COST-SKU-000143-2026-02",
@@ -456,25 +456,61 @@ curl -s 'http://localhost:8080/api/v1/exceptions?category=ANOMALY&page=0&size=5'
   "content": [
     {
       "exceptionId": "EXC-2026-0000011",
-      "runId": "DETECT-56e948afd3f5cb08",
+      "runId": "DETECT-6f47106c3a1ce835",
       "category": "ANOMALY",
       "issueType": "STALE_OBSERVATION_AS_CURRENT",
       "entityType": "price_decision",
-      "entityId": "DEC-2026-000411",
-      "skuId": "SKU-000016",
-      "eventDate": "2026-01-12",
+      "entityId": "DEC-2026-000223",
+      "skuId": "SKU-000034",
+      "eventDate": "2026-01-05",
       "relatedIds": [
-        "OBS-2026-0000783"
+        "OBS-2026-0000111"
       ],
       "violatedRule": "OBSERVATION_FRESH_72H",
-      "observedValue": "107.04",
+      "observedValue": "75.70",
       "expectedValue": "72",
       "recommendedAction": "EXCLUDE_OBSERVATION",
-      "detail": "observation OBS-2026-0000783 used at age 107.04 h"
+      "detail": "observation OBS-2026-0000111 used at age 75.70 h"
+    },
+    {
+      "exceptionId": "EXC-2026-0000012",
+      "runId": "DETECT-6f47106c3a1ce835",
+      "category": "ANOMALY",
+      "issueType": "STALE_OBSERVATION_AS_CURRENT",
+      "entityType": "price_decision",
+      "entityId": "DEC-2026-000354",
+      "skuId": "SKU-000172",
+      "eventDate": "2026-01-05",
+      "relatedIds": [
+        "OBS-2026-0000087"
+      ],
+      "violatedRule": "OBSERVATION_FRESH_72H",
+      "observedValue": "80.67",
+      "expectedValue": "72",
+      "recommendedAction": "EXCLUDE_OBSERVATION",
+      "detail": "observation OBS-2026-0000087 used at age 80.67 h"
+    },
+    {
+      "exceptionId": "EXC-2026-0000013",
+      "runId": "DETECT-6f47106c3a1ce835",
+      "category": "ANOMALY",
+      "issueType": "STALE_OBSERVATION_AS_CURRENT",
+      "entityType": "price_decision",
+      "entityId": "DEC-2026-000522",
+      "skuId": "SKU-000132",
+      "eventDate": "2026-01-12",
+      "relatedIds": [
+        "OBS-2026-0000640"
+      ],
+      "violatedRule": "OBSERVATION_FRESH_72H",
+      "observedValue": "136.08",
+      "expectedValue": "72",
+      "recommendedAction": "EXCLUDE_OBSERVATION",
+      "detail": "observation OBS-2026-0000640 used at age 136.08 h"
     },
     {
       "exceptionId": "EXC-2026-0000016",
-      "runId": "DETECT-56e948afd3f5cb08",
+      "runId": "DETECT-6f47106c3a1ce835",
       "category": "ANOMALY",
       "issueType": "MARGIN_BEFORE_DISCOUNT",
       "entityType": "price_decision",
@@ -489,44 +525,8 @@ curl -s 'http://localhost:8080/api/v1/exceptions?category=ANOMALY&page=0&size=5'
       "detail": "stored margin 0.2293, net margin -0.0276 < required 0.0564"
     },
     {
-      "exceptionId": "EXC-2026-0000012",
-      "runId": "DETECT-56e948afd3f5cb08",
-      "category": "ANOMALY",
-      "issueType": "STALE_OBSERVATION_AS_CURRENT",
-      "entityType": "price_decision",
-      "entityId": "DEC-2026-000664",
-      "skuId": "SKU-000060",
-      "eventDate": "2026-01-19",
-      "relatedIds": [
-        "OBS-2026-0001781"
-      ],
-      "violatedRule": "OBSERVATION_FRESH_72H",
-      "observedValue": "73.95",
-      "expectedValue": "72",
-      "recommendedAction": "EXCLUDE_OBSERVATION",
-      "detail": "observation OBS-2026-0001781 used at age 73.95 h"
-    },
-    {
-      "exceptionId": "EXC-2026-0000013",
-      "runId": "DETECT-56e948afd3f5cb08",
-      "category": "ANOMALY",
-      "issueType": "STALE_OBSERVATION_AS_CURRENT",
-      "entityType": "price_decision",
-      "entityId": "DEC-2026-000679",
-      "skuId": "SKU-000075",
-      "eventDate": "2026-01-19",
-      "relatedIds": [
-        "OBS-2026-0001348"
-      ],
-      "violatedRule": "OBSERVATION_FRESH_72H",
-      "observedValue": "161.25",
-      "expectedValue": "72",
-      "recommendedAction": "EXCLUDE_OBSERVATION",
-      "detail": "observation OBS-2026-0001348 used at age 161.25 h"
-    },
-    {
       "exceptionId": "EXC-2026-0000017",
-      "runId": "DETECT-56e948afd3f5cb08",
+      "runId": "DETECT-6f47106c3a1ce835",
       "category": "ANOMALY",
       "issueType": "MARGIN_BEFORE_DISCOUNT",
       "entityType": "price_decision",

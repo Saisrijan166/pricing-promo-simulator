@@ -73,7 +73,7 @@ These are set in `application.yml` under `generator.scales`. Every value can be 
 3. **Promotions** (`PromotionGenerator`).
    - **Mix:** 60% markdowns (channel ALL, Monday to Sunday, 1–4 weeks) and 40% coupons (3–21 days, with a coupon
      code, channel ALL, ECOM or STORE).
-   - **Targets:** a SKU list from one category or from any category. Markdown lists are 0.1–0.4% of SKUs (at least
+   - **Targets:** a SKU list from one category or from any category. Markdown lists are 0.12–0.45% of SKUs (at least
      5), so 15–30% of SKU-days carry a markdown. Coupon lists are 20–150 SKUs.
    - **Rules:** every promotion has MAX_STACK_COUNT 2–3 and MAX_COMBINED_DISCOUNT_PCT 0.30–0.45. 30% are EXCLUSIVE.
      25% get an EXCLUDES_PROMOTION pair with an overlapping promotion that shares SKUs. 15% of coupons need
@@ -134,34 +134,43 @@ events.
 At full scale, `generate` takes about 1 minute and also completes with `-Xmx768m`. The CSV output is about 760 MB,
 of which `price_decision` is about 300 MB, mostly the explanation JSON.
 
-## Starter run (seed 20261022)
+## Measured runs (seed 20261022, 5 anomalies per type at starter, 50 at full)
 
-| Table | Rows |
-|---|---|
-| product | 200 |
-| product_status_event | 213 |
-| cost_record | 587 |
-| promotion / promotion_rule / promotion_product / promotion_status_event | 80 / 217 / 2,328 / 295 |
-| competitor_observation | 7,143 |
-| price_decision | 1,983 |
-| price_decision_promotion / price_decision_observation / price_decision_status_event | 574 / 3,759 / 7,739 |
-| price_history / inventory_snapshot | 11,525 each |
-| customer_order / order_promotion | 13,217 / 3,768 |
-
-Operational counts printed by `generate`: 109 decisions with COMPETITOR_DATA_STALE, 1 GUARDRAIL_CONFLICT_ESCALATED,
-518 stockout SKU-days (4.5%) and 264 rejected coupons (21.9% of 1,203 presented).
-
-Against the PLAN.md §7.5 realism bands:
-
-| Metric | Value | Band |
+| Table | Starter | Full |
 |---|---|---|
-| Stockout SKU-days | 4.5% | 2–6% |
-| SKU-days under a markdown | 17.2% | 15–30% |
-| Coupon presentations rejected | 21.9% | 10–30% |
-| Realised gross margin | 39.8% | 15–40% |
-| List-price changes per SKU-month | 1.9 | 0.5–3 |
-| Top 20% of SKUs' share of units | 70% | 55–85% |
-| Considered observations stale at decision time | 21% | 5–15% (**outside**) |
+| product | 200 | 5,000 |
+| product_status_event | 213 | 5,379 |
+| cost_record | 587 | 29,000 |
+| promotion / promotion_rule / promotion_product / promotion_status_event | 80 / 217 / 2,328 / 295 | 2,000 / 5,252 / 74,320 / 7,744 |
+| competitor_observation | 7,143 | 534,705 |
+| price_decision | 1,986 | 147,339 |
+| price_decision_promotion / price_decision_observation / price_decision_status_event | 573 / 3,758 / 7,760 | 45,385 / 305,541 / 585,552 |
+| price_history / inventory_snapshot | 11,525 each | 864,016 each |
+| customer_order / order_promotion | 13,250 / 3,788 | 944,948 / 242,334 |
 
-The stale share is above its band because GAMMA observes weekly, so its latest observation is older than 72 h on
-about 4 of 7 days. The evaluation step will report this as a WARN unless the cadence or the band changes.
+Full-scale numbers are from `docs/evidence/manifest_full.json`.
+
+**Operational exceptions:**
+- Starter: 109 COMPETITOR_DATA_STALE decisions, 1 GUARDRAIL_CONFLICT_ESCALATED, 517 stockout SKU-days and 261 rejected
+  coupons.
+- Full: 9,385, 743, 43,219 and 13,151.
+
+**Realism bands** (PLAN.md §7.5, from `evaluation_metrics.json`):
+
+| Metric | Starter | Full | Band |
+|---|---|---|---|
+| Stockout SKU-days | 4.5% | 5.0% | 2–6% |
+| SKU-days under a markdown | 17.5% | 16.7% | 15–30% |
+| Coupon presentations rejected | 21.6% | 25.5% | 10–30% |
+| Realised gross margin | 39.7% | 37.4% | 15–40% |
+| List-price changes per SKU-month | 1.90 | 1.77 | 0.5–3 |
+| Top 20% of SKUs' share of units | 70.3% | 66.5% | 55–85% |
+| Considered observations stale at decision time | 21.2% | 21.7% | 5–15% (**WARN**) |
+
+The stale share is above its band by construction:
+- GAMMA observes weekly, so its latest observation is older than 72 h on about 4 of 7 days.
+- Gap episodes add more stale data.
+
+Changing the cadence or the band would make the two PLAN.md §7 statements consistent; the README explains why it was
+left as is. The markdown list size was raised from 0.1–0.4% to 0.12–0.45% of SKUs after the first full run measured
+14.9% SKU-days under a markdown, just below its band.

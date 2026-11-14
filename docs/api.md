@@ -86,7 +86,7 @@ Response (abridged; full sample in [evidence/api_samples.md](evidence/api_sample
 {
   "skuId": "SKU-000143", "asOfDate": "2026-02-02", "decisionTs": "2026-02-02T06:00:00Z", "trigger": "WEEKLY_REVIEW",
   "inputs": {"costRecordId": "COST-SKU-000143-2026-02", "landedCost": 139.96, "prevListPrice": 249.00,
-             "previousDecisionId": "DEC-2026-000954", "onHandUnits": 0, "demand7dUnits": 3, "demand28dUnits": 10,
+             "previousDecisionId": "DEC-2026-000953", "onHandUnits": 0, "demand7dUnits": 3, "demand28dUnits": 10,
              "velocityRatio": 1.2000, "daysOfCover": 0.00},
   "candidateListPrice": 199.00, "expectedNetPrice": 199.00, "floorPrice": 193.03, "ceilingPrice": 259.00,
   "targetPrice": 169.00, "competitorRefPrice": null, "markdownDiscountPct": 0.0000,
@@ -134,7 +134,7 @@ curl -s -X POST http://localhost:8080/api/v1/pricing/simulate -H 'Content-Type: 
 | `detectedExceptions[]` | Detector findings whose entity is this decision or one of its price-history rows |
 
 ```bash
-curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
+curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001221/explain
 ```
 
 ## GET /exceptions
@@ -151,12 +151,12 @@ curl -s http://localhost:8080/api/v1/decisions/DEC-2026-001222/explain
 Results are sorted by `event_date`, then `exception_id`. That is a total order, so pages never overlap or skip rows.
 
 ```json
-{"content": [{"exceptionId": "EXC-2026-0000011", "runId": "DETECT-56e948afd3f5cb08", "category": "ANOMALY",
+{"content": [{"exceptionId": "EXC-2026-0000011", "runId": "DETECT-6f47106c3a1ce835", "category": "ANOMALY",
               "issueType": "STALE_OBSERVATION_AS_CURRENT", "entityType": "price_decision",
-              "entityId": "DEC-2026-000411", "skuId": "SKU-000016", "eventDate": "2026-01-12",
-              "relatedIds": ["OBS-2026-0000783"], "violatedRule": "OBSERVATION_FRESH_72H", "observedValue": "107.04",
+              "entityId": "DEC-2026-000223", "skuId": "SKU-000034", "eventDate": "2026-01-05",
+              "relatedIds": ["OBS-2026-0000111"], "violatedRule": "OBSERVATION_FRESH_72H", "observedValue": "75.70",
               "expectedValue": "72", "recommendedAction": "EXCLUDE_OBSERVATION",
-              "detail": "observation OBS-2026-0000783 used at age 107.04 h"}],
+              "detail": "observation OBS-2026-0000111 used at age 75.70 h"}],
  "page": 0, "size": 5, "totalElements": 25, "totalPages": 5}
 ```
 

@@ -1,0 +1,46 @@
+{
+  "seed": 20261022,
+  "scale": "full",
+  "dataset_fingerprint": "1a275c7351db18670ba27958c174590c1ed76d3d0853fcac19cd25e2b4907334",
+  "matching": "(issue_type, entity_type, entity_id)",
+  "anomaly_detection": {
+    "PRICE_BELOW_FLOOR": {"labelled": 50, "detected": 50, "tp": 50, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+    "PROMO_STACK_VIOLATION": {"labelled": 50, "detected": 50, "tp": 50, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+    "STALE_OBSERVATION_AS_CURRENT": {"labelled": 50, "detected": 50, "tp": 50, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+    "MARGIN_BEFORE_DISCOUNT": {"labelled": 50, "detected": 50, "tp": 50, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+    "PRICE_CHANGE_WITHOUT_REASON": {"labelled": 50, "detected": 50, "tp": 50, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000}
+  },
+  "micro": {"labelled": 250, "detected": 250, "tp": 250, "fp": 0, "fn": 0, "precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+  "macro": {"precision": 1.0000, "recall": 1.0000, "f1": 1.0000},
+  "missed": [],
+  "unexpected": [],
+  "realism": [
+    {"metric": "stockout_sku_day_rate", "value": 0.0500, "band": [0.0200, 0.0600], "unit": "share of SKU-days", "status": "OK"},
+    {"metric": "observations_stale_at_decision", "value": 0.2167, "band": [0.0500, 0.1500], "unit": "share of considered observations", "status": "WARN"},
+    {"metric": "sku_days_under_markdown", "value": 0.1668, "band": [0.1500, 0.3000], "unit": "share of SKU-days", "status": "OK"},
+    {"metric": "coupon_presentations_rejected", "value": 0.2554, "band": [0.1000, 0.3000], "unit": "share of presented coupons", "status": "OK"},
+    {"metric": "average_realised_gross_margin", "value": 0.3744, "band": [0.1500, 0.4000], "unit": "gross margin / net revenue", "status": "OK"},
+    {"metric": "list_price_changes_per_sku_month", "value": 1.7656, "band": [0.5000, 3.0000], "unit": "changes per SKU per 30.4 days", "status": "OK"},
+    {"metric": "top_20pct_skus_share_of_units", "value": 0.6646, "band": [0.5500, 0.8500], "unit": "share of units", "status": "OK"}
+  ],
+  "operational_exceptions": {"COMPETITOR_DATA_STALE": 9385, "GUARDRAIL_CONFLICT_ESCALATED": 743, "STOCKOUT": 43219, "COUPON_REJECTED": 13151},
+  "decision_mix": {
+    "trigger": {"COST_CHANGE": 7342, "INITIAL": 5000, "STOCKOUT_EVENT": 14077, "WEEKLY_REVIEW": 120920},
+    "decision_type": {"DECREASE": 25715, "HOLD": 97271, "INCREASE": 24353},
+    "status": {"APPLIED": 5000, "SUPERSEDED": 142339},
+    "decision_source": {"ENGINE": 146067, "MANUAL_OVERRIDE": 1272},
+    "primary_reason_code": {"CEILING_ENFORCED": 1304, "COMPETITOR_ALIGN": 34899, "COMPETITOR_DATA_STALE": 7970, "COST_CHANGE": 3059, "FLOOR_ENFORCED": 875, "GUARDRAIL_CONFLICT_ESCALATED": 743, "INITIAL_PRICE": 5000, "LARGE_CHANGE_ESCALATED": 286, "LOW_COVER_INCREASE": 4349, "MANUAL_OVERRIDE": 1267, "NO_CHANGE": 70057, "OVERSTOCK_MARKDOWN": 224, "PRICE_POINT_ROUNDED": 10, "STEP_LIMIT_APPLIED": 4144, "STOCKOUT_HOLD": 13152}
+  },
+  "by_category": {
+    "APPAREL": {"units": 110282, "net_revenue": 101820321.27, "gross_margin": 54515128.35},
+    "BEAUTY": {"units": 76998, "net_revenue": 38662314.95, "gross_margin": 18592349.85},
+    "ELECTRONICS": {"units": 42655, "net_revenue": 126128633.48, "gross_margin": 32421656.48},
+    "GROCERY": {"units": 395500, "net_revenue": 70282737.80, "gross_margin": 17527154.82},
+    "HEALTH": {"units": 64862, "net_revenue": 22533396.01, "gross_margin": 7701852.20},
+    "HOME_KITCHEN": {"units": 112961, "net_revenue": 98852841.87, "gross_margin": 39447295.47},
+    "PERSONAL_CARE": {"units": 199164, "net_revenue": 54757070.14, "gross_margin": 19148055.31},
+    "SPORTS": {"units": 39620, "net_revenue": 49181979.16, "gross_margin": 18486314.52},
+    "STATIONERY": {"units": 116718, "net_revenue": 13508482.20, "gross_margin": 5920715.54},
+    "TOYS": {"units": 41470, "net_revenue": 28431853.76, "gross_margin": 12466790.12}
+  }
+}
