@@ -35,6 +35,27 @@ logging:
   level:
     org.flywaydb: INFO
 
+# Pricing engine thresholds (PLAN.md §8). Used by the generator and the simulate API alike; changing any value
+# changes the generated dataset, so bump PricingPolicy.RULE_VERSION with it.
+pricing:
+  policy:
+    freshness-hours: 72
+    min-match-confidence: "0.80"
+    max-step-change-pct: "0.08"
+    auto-approve-max-change-pct: "0.10"
+    overstock-days: 60
+    low-cover-days: 7
+    high-velocity-ratio: "1.2"
+    overstock-adj: "-0.03"
+    low-cover-adj: "0.03"
+    value-offset: "-0.03"
+    match-offset: 0
+    premium-offset: "0.05"
+    default-max-stack: 2
+    default-max-combined-discount: "0.40"
+    initial-target-ratio: "0.95"
+    min-history-days: 7
+
 # Synthetic data generator (PLAN.md §7.1). Every profile value can be overridden by a CLI flag
 # (--seed --skus --days --promos --start-date --anomalies-per-type).
 generator:

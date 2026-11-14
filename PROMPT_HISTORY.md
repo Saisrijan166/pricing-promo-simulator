@@ -271,3 +271,60 @@ Decisions and deviations the AI flagged for review:
   SKUs sell 66.8% of units (band 55–85%).
 - Flag overrides (`--skus --days --seed --start-date --promos --anomalies-per-type --out`) apply. An unknown scale,
   `--skus 0` or an unknown option gives an error message and a non-zero exit.
+
+---
+
+### #05 — 2026-11-14 09:29 UTC — Claude Code (Opus 5.5) — Phases P2 and P3 (second half) Pricing engine, promotions, decisions and orders
+
+**Prompt (verbatim):**
+
+```text
+Read PLAN.md (§2, §4.3, §5.6–§5.10, §7.2 steps 3 and 5, §8). Implement phase P2 and the second half of P3 on top of the existing generator.
+
+Deliverables:
+1. generator/master/PromotionGenerator writes promotion, promotion_rule, promotion_product and promotion_status_event
+   per PLAN §7.2 step 3. This covers Mon→Sun markdowns, coupons with coupon codes, EXCLUSIVE rules,
+   EXCLUDES_PROMOTION pairs on overlapping promotions (the conflicting coupons), cancellations, and the ID ordering in PLAN §6.
+2. pricing package, pure Java with no Spring or DB:
+   PricingPolicy (+ PricingPolicyProperties), GuardrailCalculator, MarginCalculator (net basis only),
+   CompetitorReferenceResolver (72 h on source_captured_at), DemandSignalCalculator,
+   PromotionStackResolver (total order: priority, then promotion_id), PricePointRounder, PricingEngine,
+   PricingContext, PricingResult and ExplanationStep. Implement steps S1–S12 and every ReasonCode in PLAN §8.
+3. Replace InitialPriceSetter. MarketSimulator triggers decisions per PLAN §2 assumption 7 and builds PricingContext
+   with no look-ahead. It writes:
+   - price_decision: every stored-input field in PLAN §5.9, plus reason_codes, explanation JSON and rule_version.
+   - price_decision_observation: USED or EXCLUDED_* with age_hours.
+   - price_decision_promotion: APPLIED or REJECTED with a reason.
+   - price_decision_status_event, including ESCALATED, APPROVED, APPLIED and SUPERSEDED.
+   price_history gets source_decision_id, change_reason and shelf_price.
+4. generator/sim/OrderGenerator splits units sold into customer_order rows.
+   Coupons go through PromotionStackResolver into order_promotion (APPLIED or REJECTED with a reason).
+   2% of orders are CANCELLED. Every order amount is derived per PLAN §5.8.
+5. docs/pricing_rules.md (S1–S12 with one worked numeric example) and docs/generator_design.md.
+6. Tests:
+   - GuardrailCalculatorTest.
+   - MarginCalculatorTest, including the margin-before-discount regression.
+   - CompetitorReferenceResolverTest, including the exact 72 h boundary.
+   - PromotionStackResolverTest, including invariance to shuffled input.
+   - PricePointRounderTest and PricingEngineTest (every reason code reachable).
+   - GoldenScenariosTest: 20 hand-computed cases in src/test/resources/golden/pricing_scenarios.json.
+   - Extend DerivedValuesTest: order totals reconcile; units_sold = Σ FULFILLED quantity; every price_history row
+     matches its decision's final_list_price; a clean run has no price below floor or above MRP.
+
+Done when:
+- ./mvnw clean verify → all tests green.
+- `generate --scale starter --out out/starter` writes all 16 data tables, and every price_history row has a source_decision_id.
+- generate prints, and the starter run has non-zero counts of, all of these:
+  COMPETITOR_DATA_STALE decisions, GUARDRAIL_CONFLICT_ESCALATED decisions, stockout days and REJECTED coupons.
+- Two generations with the same seed are still byte-identical.
+
+Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 steps 6, 7 and 9). Do not push yet.
+```
+
+This is `BUILD_PROMPTS.md` Prompt 3, unchanged.
+
+**What AI produced:** _In progress. Completed in the last commit of this prompt (PLAN §16 step 9)._
+
+**What I did with it:** _Pending._
+
+**Verification:** _Pending._
