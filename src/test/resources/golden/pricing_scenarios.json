@@ -1,0 +1,1157 @@
+{
+  "description": "20 hand-computed pricing scenarios (PLAN.md §12). Decision: Monday 2026-01-05 06:00Z. Defaults: weekly review, MRP 299, landed 150, min margin 0.20, min promo margin 0.10, MATCH, previous price 249, 50 on hand, sales [d7, n7, d28, n28] = [14, 7, 56, 28] (cover 25 days, velocity 1.0). Observation ageHours is decision_ts - source_captured_at; ingestion is 1 h after capture unless ingestedHoursAfterDecision is given.",
+  "scenarios": [
+    {
+      "name": "initial-no-competitor",
+      "notes": "floor = 250/0.75 = 333.333 -> 333.34; target = 499 x 0.95 = 474.05; nearest point 479 (4.95 away vs 5.05 to 469); margin = 229/479 = 0.4781",
+      "input": {
+        "trigger": "INITIAL",
+        "mrp": "499.00",
+        "map": null,
+        "minMargin": "0.2500",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "250.00",
+        "prev": null,
+        "onHand": 50,
+        "sales": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "333.34",
+        "ceiling": "499.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "479.00",
+        "expectedNetPrice": "479.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.4781",
+        "requiredMarginPct": "0.2500",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "INITIAL_PRICE",
+        "reasonCodes": [
+          "INITIAL_PRICE",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "initial-competitor-value",
+      "notes": "ref = median(899, 919) = 909.00; VALUE offset -3% -> 881.73; nearest point 879; margin = 379/879 = 0.4312",
+      "input": {
+        "trigger": "INITIAL",
+        "mrp": "999.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "VALUE",
+        "landed": "500.00",
+        "prev": null,
+        "onHand": 50,
+        "sales": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "899.00",
+            "ageHours": 2,
+            "confidence": "0.950"
+          },
+          {
+            "competitor": "COMP_BETA",
+            "price": "919.00",
+            "ageHours": 10,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "625.00",
+        "ceiling": "999.00",
+        "competitorRef": "909.00",
+        "freshCount": 2,
+        "staleCount": 0,
+        "finalListPrice": "879.00",
+        "expectedNetPrice": "879.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.4312",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "INITIAL_PRICE",
+        "reasonCodes": [
+          "INITIAL_PRICE",
+          "COMPETITOR_ALIGN",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "cost-change-large-increase",
+      "notes": "floor = 200/0.8 = 250; target 229 inside +/-8%; raised to floor 250; nearest point 249 is below floor -> 259; change 30/229 = 13.1% > 10% -> escalate; margin 59/259 = 0.2278",
+      "input": {
+        "trigger": "COST_CHANGE",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "200.00",
+        "prev": "229.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "250.00",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "259.00",
+        "expectedNetPrice": "259.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.2278",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "ESCALATED",
+        "primaryReason": "COST_CHANGE",
+        "reasonCodes": [
+          "COST_CHANGE",
+          "FLOOR_ENFORCED",
+          "PRICE_POINT_ROUNDED",
+          "LARGE_CHANGE_ESCALATED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "competitor-align-match",
+      "notes": "ref = median(239, 231, 245) = 239; MATCH; inside 249 x 0.92 = 229.08; already a point; margin 89/239 = 0.3724",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "239.00",
+            "ageHours": 5,
+            "confidence": "0.950"
+          },
+          {
+            "competitor": "COMP_GAMMA",
+            "price": "245.00",
+            "ageHours": 30,
+            "confidence": "0.950"
+          },
+          {
+            "competitor": "COMP_BETA",
+            "price": "231.00",
+            "ageHours": 20,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": "239.00",
+        "freshCount": 3,
+        "staleCount": 0,
+        "finalListPrice": "239.00",
+        "expectedNetPrice": "239.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3724",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "DECREASE",
+        "status": "APPROVED",
+        "primaryReason": "COMPETITOR_ALIGN",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "premium-step-limited",
+      "notes": "ref 489 x 1.05 = 513.45; step limit 449 x 1.08 = 484.92; nearest point 489 (4.08 vs 5.92 to 479); change 8.9%; margin 189/489 = 0.3865",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "599.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "PREMIUM",
+        "landed": "300.00",
+        "prev": "449.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "489.00",
+            "ageHours": 1,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "375.00",
+        "ceiling": "599.00",
+        "competitorRef": "489.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "489.00",
+        "expectedNetPrice": "489.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3865",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "APPROVED",
+        "primaryReason": "STEP_LIMIT_APPLIED",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STEP_LIMIT_APPLIED",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "stale-competitor-hold",
+      "notes": "both latest observations are older than 72 h -> no reference, COMPETITOR_DATA_STALE; price holds at 249; margin 99/249 = 0.3976",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "199.00",
+            "ageHours": 80,
+            "confidence": "0.950"
+          },
+          {
+            "competitor": "COMP_BETA",
+            "price": "205.00",
+            "ageHours": 100,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 2,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "249.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3976",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "COMPETITOR_DATA_STALE",
+        "reasonCodes": [
+          "COMPETITOR_DATA_STALE",
+          "NO_CHANGE"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "freshness-boundary-72h",
+      "notes": "captured exactly 72 h before -> fresh; ref 229 < step floor 229.08 -> 229.08; nearest point 229; change 8.0%; margin 79/229 = 0.3450",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "229.00",
+            "ageHours": 72,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": "229.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "229.00",
+        "expectedNetPrice": "229.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3450",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "DECREASE",
+        "status": "APPROVED",
+        "primaryReason": "STEP_LIMIT_APPLIED",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STEP_LIMIT_APPLIED",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "low-confidence-and-late-feed",
+      "notes": "ALPHA is fresh but confidence 0.750 < 0.80 -> excluded; BETA was ingested after the decision -> invisible; no reference, not stale; hold",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "199.00",
+            "ageHours": 2,
+            "confidence": "0.750"
+          },
+          {
+            "competitor": "COMP_BETA",
+            "price": "205.00",
+            "ageHours": 5,
+            "confidence": "0.950",
+            "ingestedHoursAfterDecision": 1
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "249.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3976",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "NO_CHANGE",
+        "reasonCodes": [
+          "NO_CHANGE"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "manual-override",
+      "notes": "analyst target 262 (no step limit); inside guardrails; nearest point 259; margin 109/259 = 0.4208",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": "262.00",
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "259.00",
+        "expectedNetPrice": "259.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.4208",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "APPROVED",
+        "primaryReason": "MANUAL_OVERRIDE",
+        "reasonCodes": [
+          "MANUAL_OVERRIDE",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "floor-enforced",
+      "notes": "ref 179 -> step floor 199 x 0.92 = 183.08 -> raised to floor 187.50 -> nearest point 189; margin 39/189 = 0.2063",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "199.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "179.00",
+            "ageHours": 3,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": "179.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "189.00",
+        "expectedNetPrice": "189.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.2063",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "DECREASE",
+        "status": "APPROVED",
+        "primaryReason": "FLOOR_ENFORCED",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STEP_LIMIT_APPLIED",
+          "FLOOR_ENFORCED",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "map-dominates-floor",
+      "notes": "margin floor 250 < MAP 420 -> floor 420; ref 399 -> 413.08 (step) -> 420 (floor); nearest point 419 < floor -> 429; margin 229/429 = 0.5338",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "499.00",
+        "map": "420.00",
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "200.00",
+        "prev": "449.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "399.00",
+            "ageHours": 2,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "420.00",
+        "ceiling": "499.00",
+        "competitorRef": "399.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "429.00",
+        "expectedNetPrice": "429.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.5338",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "DECREASE",
+        "status": "APPROVED",
+        "primaryReason": "FLOOR_ENFORCED",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STEP_LIMIT_APPLIED",
+          "FLOOR_ENFORCED",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "ceiling-enforced",
+      "notes": "PREMIUM 195 x 1.05 = 204.75; step 189 x 1.08 = 204.12; lowered to MRP 199; margin 99/199 = 0.4975",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "199.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "PREMIUM",
+        "landed": "100.00",
+        "prev": "189.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "195.00",
+            "ageHours": 2,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "125.00",
+        "ceiling": "199.00",
+        "competitorRef": "195.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "199.00",
+        "expectedNetPrice": "199.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.4975",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "APPROVED",
+        "primaryReason": "CEILING_ENFORCED",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STEP_LIMIT_APPLIED",
+          "CEILING_ENFORCED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "overstock-markdown",
+      "notes": "cover = 300 x 28 / 56 = 150 days > 60 -> 249 x 0.97 = 241.53 -> nearest point 239; margin 0.3724",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 300,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "239.00",
+        "expectedNetPrice": "239.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3724",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "DECREASE",
+        "status": "APPROVED",
+        "primaryReason": "OVERSTOCK_MARKDOWN",
+        "reasonCodes": [
+          "OVERSTOCK_MARKDOWN",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "low-cover-high-velocity",
+      "notes": "velocity (28/7)/(70/28) = 1.6; cover 8 x 28 / 70 = 3.2 < 7 -> 249 x 1.03 = 256.47 -> nearest point 259; margin 109/259 = 0.4208",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 8,
+        "sales": [
+          28,
+          7,
+          70,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "259.00",
+        "expectedNetPrice": "259.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.4208",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "APPROVED",
+        "primaryReason": "LOW_COVER_INCREASE",
+        "reasonCodes": [
+          "LOW_COVER_INCREASE",
+          "PRICE_POINT_ROUNDED"
+        ],
+        "promotions": {}
+      }
+    },
+    {
+      "name": "stockout-hold-suppresses-markdown",
+      "notes": "on hand 0 -> hold the previous 249 despite ref 229, and suppress the markdown",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 0,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [
+          {
+            "competitor": "COMP_ALPHA",
+            "price": "229.00",
+            "ageHours": 2,
+            "confidence": "0.950"
+          }
+        ],
+        "promotions": [
+          {
+            "id": "PROMO-2026-000001",
+            "type": "MARKDOWN_PCT",
+            "value": "0.10",
+            "priority": 10,
+            "maxStack": 3,
+            "maxCombined": "0.45",
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          }
+        ]
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": "229.00",
+        "freshCount": 1,
+        "staleCount": 0,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "249.00",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.3976",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "STOCKOUT_HOLD",
+        "reasonCodes": [
+          "COMPETITOR_ALIGN",
+          "STOCKOUT_HOLD",
+          "PROMO_SUPPRESSED_STOCKOUT",
+          "NO_CHANGE"
+        ],
+        "promotions": {
+          "PROMO-2026-000001": "PROMO_SUPPRESSED_STOCKOUT"
+        }
+      }
+    },
+    {
+      "name": "markdown-applied",
+      "notes": "15% of 249 = 37.35 -> net 211.65; promo margin 61.65/211.65 = 0.2913 >= 0.10",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": [
+          {
+            "id": "PROMO-2026-000001",
+            "type": "MARKDOWN_PCT",
+            "value": "0.15",
+            "priority": 10,
+            "maxStack": 3,
+            "maxCombined": "0.45",
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          }
+        ]
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "211.65",
+        "markdownDiscountPct": "0.1500",
+        "marginPct": "0.2913",
+        "requiredMarginPct": "0.1000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "NO_CHANGE",
+        "reasonCodes": [
+          "PROMO_APPLIED",
+          "NO_CHANGE"
+        ],
+        "promotions": {
+          "PROMO-2026-000001": "PROMO_APPLIED"
+        }
+      }
+    },
+    {
+      "name": "exclusive-and-excluded-pair",
+      "notes": "order A(10) B(20) C(30) D(40): A applied; B exclusive -> rejected; C excludes A -> rejected; D INR 10 applied; 249 -> 24.90 -> 224.10 -> 10.00 -> 214.10; margin 64.10/214.10 = 0.2994; markdown 34.90/249 = 0.1402",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": [
+          {
+            "id": "PROMO-2026-000004",
+            "type": "MARKDOWN_AMOUNT",
+            "value": "10.00",
+            "priority": 40,
+            "maxStack": 3,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000002",
+            "type": "MARKDOWN_PCT",
+            "value": "0.05",
+            "priority": 20,
+            "maxStack": 3,
+            "maxCombined": "0.45",
+            "exclusive": true,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000001",
+            "type": "MARKDOWN_PCT",
+            "value": "0.10",
+            "priority": 10,
+            "maxStack": 3,
+            "maxCombined": "0.45",
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000003",
+            "type": "MARKDOWN_PCT",
+            "value": "0.05",
+            "priority": 30,
+            "maxStack": 3,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": "PROMO-2026-000001",
+            "minQty": null
+          }
+        ]
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "214.10",
+        "markdownDiscountPct": "0.1402",
+        "marginPct": "0.2994",
+        "requiredMarginPct": "0.1000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "NO_CHANGE",
+        "reasonCodes": [
+          "PROMO_APPLIED",
+          "PROMO_REJECTED_EXCLUSIVE",
+          "PROMO_REJECTED_EXCLUDED_PAIR",
+          "NO_CHANGE"
+        ],
+        "promotions": {
+          "PROMO-2026-000001": "PROMO_APPLIED",
+          "PROMO-2026-000002": "PROMO_REJECTED_EXCLUSIVE",
+          "PROMO-2026-000003": "PROMO_REJECTED_EXCLUDED_PAIR",
+          "PROMO-2026-000004": "PROMO_APPLIED"
+        }
+      }
+    },
+    {
+      "name": "discount-cap-and-stack-limit",
+      "notes": "A 20% (cap 0.30) applied: 49.80; B 15% would add 29.88 -> 32% > 30% -> cap; C 5% adds 9.96 -> 24% -> applied; D (max stack 2) would be third -> stack limit; net 189.24; margin 39.24/189.24 = 0.2074",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "299.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "150.00",
+        "prev": "249.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": [
+          {
+            "id": "PROMO-2026-000001",
+            "type": "MARKDOWN_PCT",
+            "value": "0.20",
+            "priority": 1,
+            "maxStack": 3,
+            "maxCombined": "0.30",
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000002",
+            "type": "MARKDOWN_PCT",
+            "value": "0.15",
+            "priority": 2,
+            "maxStack": 3,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000003",
+            "type": "MARKDOWN_PCT",
+            "value": "0.05",
+            "priority": 3,
+            "maxStack": 3,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000004",
+            "type": "MARKDOWN_PCT",
+            "value": "0.05",
+            "priority": 4,
+            "maxStack": 2,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          }
+        ]
+      },
+      "expected": {
+        "floor": "187.50",
+        "ceiling": "299.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "249.00",
+        "expectedNetPrice": "189.24",
+        "markdownDiscountPct": "0.2400",
+        "marginPct": "0.2074",
+        "requiredMarginPct": "0.1000",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "NO_CHANGE",
+        "reasonCodes": [
+          "PROMO_APPLIED",
+          "PROMO_REJECTED_DISCOUNT_CAP",
+          "PROMO_REJECTED_STACK_LIMIT",
+          "NO_CHANGE"
+        ],
+        "promotions": {
+          "PROMO-2026-000001": "PROMO_APPLIED",
+          "PROMO-2026-000002": "PROMO_REJECTED_DISCOUNT_CAP",
+          "PROMO-2026-000003": "PROMO_APPLIED",
+          "PROMO-2026-000004": "PROMO_REJECTED_STACK_LIMIT"
+        }
+      }
+    },
+    {
+      "name": "margin-drops-last-markdown",
+      "notes": "both applied: 299 -> 29.90 -> 269.10 -> 40.37 -> 228.73, margin 28.73/228.73 = 12.6% < 15% -> drop the last (B); net 269.10, margin 69.10/269.10 = 0.2568",
+      "input": {
+        "trigger": "WEEKLY_REVIEW",
+        "mrp": "349.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1500",
+        "position": "MATCH",
+        "landed": "200.00",
+        "prev": "299.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": [
+          {
+            "id": "PROMO-2026-000001",
+            "type": "MARKDOWN_PCT",
+            "value": "0.10",
+            "priority": 1,
+            "maxStack": 3,
+            "maxCombined": "0.45",
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          },
+          {
+            "id": "PROMO-2026-000002",
+            "type": "MARKDOWN_PCT",
+            "value": "0.15",
+            "priority": 2,
+            "maxStack": 3,
+            "maxCombined": null,
+            "exclusive": false,
+            "excludes": null,
+            "minQty": null
+          }
+        ]
+      },
+      "expected": {
+        "floor": "250.00",
+        "ceiling": "349.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "299.00",
+        "expectedNetPrice": "269.10",
+        "markdownDiscountPct": "0.1000",
+        "marginPct": "0.2568",
+        "requiredMarginPct": "0.1500",
+        "decisionType": "HOLD",
+        "status": "APPROVED",
+        "primaryReason": "NO_CHANGE",
+        "reasonCodes": [
+          "PROMO_APPLIED",
+          "PROMO_REJECTED_MARGIN",
+          "NO_CHANGE"
+        ],
+        "promotions": {
+          "PROMO-2026-000001": "PROMO_APPLIED",
+          "PROMO-2026-000002": "PROMO_REJECTED_MARGIN"
+        }
+      }
+    },
+    {
+      "name": "guardrail-conflict",
+      "notes": "floor = 170/0.8 = 212.50 > MRP 199 -> conflict: price = floor (unrounded), escalate; change 23.5/189 = 12.4%; margin 0.2000",
+      "input": {
+        "trigger": "COST_CHANGE",
+        "mrp": "199.00",
+        "map": null,
+        "minMargin": "0.2000",
+        "minPromoMargin": "0.1000",
+        "position": "MATCH",
+        "landed": "170.00",
+        "prev": "189.00",
+        "onHand": 50,
+        "sales": [
+          14,
+          7,
+          56,
+          28
+        ],
+        "manual": null,
+        "observations": [],
+        "promotions": []
+      },
+      "expected": {
+        "floor": "212.50",
+        "ceiling": "199.00",
+        "competitorRef": null,
+        "freshCount": 0,
+        "staleCount": 0,
+        "finalListPrice": "212.50",
+        "expectedNetPrice": "212.50",
+        "markdownDiscountPct": "0.0000",
+        "marginPct": "0.2000",
+        "requiredMarginPct": "0.2000",
+        "decisionType": "INCREASE",
+        "status": "ESCALATED",
+        "primaryReason": "GUARDRAIL_CONFLICT_ESCALATED",
+        "reasonCodes": [
+          "COST_CHANGE",
+          "GUARDRAIL_CONFLICT_ESCALATED",
+          "FLOOR_ENFORCED",
+          "LARGE_CHANGE_ESCALATED"
+        ],
+        "promotions": {}
+      }
+    }
+  ]
+}

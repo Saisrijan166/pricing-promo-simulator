@@ -9,6 +9,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.pricingsim.domain.enums.ApplicationStatus;
+import com.pricingsim.domain.enums.ReasonCode;
 
 class MarginCalculatorTest {
 
@@ -42,7 +44,7 @@ class MarginCalculatorTest {
 
     /**
      * Regression for the MARGIN_BEFORE_DISCOUNT anomaly (PLAN.md §9 #4): the margin on the list price passes, the margin
-     * on the net price fails, and only the net basis is available.
+     * on the net price fails, and the engine judges on net, so it drops the markdown.
      */
     @Test
     void marginBeforeDiscountRegression() {
@@ -56,6 +58,20 @@ class MarginCalculatorTest {
         assertThat(wrongBasis).isNotEqualByComparingTo(netBasis);
         assertThat(wrongBasis).isGreaterThanOrEqualTo(required);
         assertThat(MarginCalculator.meetsMargin(net, landed, required)).isFalse();
+
+        PricingContext ctx = Contexts.weekly()
+                .landed("75.00").minMargin("0.2000").minPromoMargin("0.1500").mrp("109.00").prev("100.00")
+                .promotions(Offers.markdownPct("PROMO-2026-000001", "0.20").build())
+                .build();
+        PricingResult result = new PricingEngine(PricingPolicy.defaults()).price(ctx);
+        assertThat(result.finalListPrice()).isEqualByComparingTo("99.00");
+        assertThat(result.promotions()).singleElement().satisfies(e -> {
+            assertThat(e.status()).isEqualTo(ApplicationStatus.REJECTED);
+            assertThat(e.reason()).isEqualTo(ReasonCode.PROMO_REJECTED_MARGIN);
+        });
+        assertThat(result.expectedNetPrice()).isEqualByComparingTo("99.00");
+        assertThat(result.marginPct()).isEqualByComparingTo(MarginCalculator.netMargin(d("99.00"), landed));
+        assertThat(result.requiredMarginPct()).isEqualByComparingTo("0.2000");
     }
 
     @Test
