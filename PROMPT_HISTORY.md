@@ -126,8 +126,9 @@ Finally: append this prompt verbatim to PROMPT_HISTORY.md as #03, then commit in
 Note: do not push as of now anything will do everything later after everything is built and done
 ```
 
-This is `BUILD_PROMPTS.md` Prompt 1 with one change: the final "create the public repo and push" line was replaced by
-the no-push note.
+This is the original `BUILD_PROMPTS.md` Prompt 1 with one change: the final "create the public repo and push" line was
+replaced by the no-push note. Prompt 1's wording in `BUILD_PROMPTS.md` was tidied afterwards; the text above is what
+actually ran.
 
 **What AI produced:** Five commits (PLAN §16 steps 1–5):
 - The brief moved to `docs/challenge_brief.md`; `.gitignore`, `.gitattributes`, `.editorconfig`, MIT `LICENSE`.
