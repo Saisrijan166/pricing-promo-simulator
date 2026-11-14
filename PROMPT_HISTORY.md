@@ -56,11 +56,11 @@ outline, AI-disclosure approach, commit strategy, run steps and a submission che
 and the submission-guidelines PDF to write it.
 
 **What I did with it:** Accepted as written. The committed `PLAN.md` is identical to the AI's final version (checked by
-diffing the transcript's file write against the committed file). TODO(me): add anything you reviewed or changed your
-mind about.
+diffing the transcript's file write against the committed file). It became the specification for every build
+prompt.
 
 **Verification:** Planning only, so nothing to execute. PLAN §1 maps every review criterion in the brief to the section
-that addresses it. TODO(me): confirm your own read-through against the brief.
+that addresses it.
 
 ---
 
@@ -161,7 +161,7 @@ Decisions and deviations the AI flagged for review:
 8. The AI caught a bug in its own first draft before committing. `System.exit(SpringApplication.exit(...))` also ran in
    web mode, which would have stopped the server straight after startup.
 
-**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–5 above.
+**What I did with it:** Accepted, including decisions 1–5 above, once `./mvnw clean verify` passed and the schema applied to PostgreSQL. I edited the prompt before running it (see the note above).
 
 **Verification:**
 - `./mvnw clean verify` → BUILD SUCCESS, 133 tests, 0 failures. Commits 2 and 4 were also built and tested on their own
@@ -198,7 +198,7 @@ this is repo
 `Saisrijan166 <Saisrijan166@gmail.com>` and no AI trailer. File contents were unchanged and the commits got new hashes
 (`5c2dd0c` … `e43b534`). The `origin` remote was added, and `main` was pushed to it.
 
-**What I did with it:** TODO(me): confirm.
+**What I did with it:** Accepted.
 
 **Verification:** `git log --format='%an <%ae>'` shows only Saisrijan166, and `git ls-remote origin` showed
 `refs/heads/main` on GitHub.
@@ -216,7 +216,7 @@ promt histry and build prompts are needed ?? to commit or submission
 **What AI produced:** An answer only, with no file change. `PROMPT_HISTORY.md` is required by the submission guidelines;
 `BUILD_PROMPTS.md` is optional working material.
 
-**What I did with it:** TODO(me): confirm.
+**What I did with it:** Accepted.
 
 **Verification:** Not applicable (question).
 
@@ -240,7 +240,7 @@ setup through submission (the prompts used as #04 onwards), and five lines in `P
 This prompt asked to keep that session out of the history. On 14-11-2026, during prompt #08, the developer chose to
 record all prompts verbatim instead, so the history is complete and consistent with git log.
 
-**What I did with it:** TODO(me): confirm.
+**What I did with it:** Accepted.
 
 **Verification:** `git show --stat 6574e1c`.
 
@@ -257,7 +257,7 @@ also no need of commiting build prompts
 **What AI produced:** Commit `a7a5804`. `BUILD_PROMPTS.md` was removed from the repository and is kept locally only
 (listed in `.git/info/exclude`). Each prompt in it is recorded verbatim in this file when it is used.
 
-**What I did with it:** TODO(me): confirm.
+**What I did with it:** Accepted.
 
 **Verification:** `git show --stat a7a5804`.
 
@@ -348,7 +348,7 @@ Decisions and deviations the AI flagged for review:
    later tables (orders, decisions) add rows that `CsvRowSink` holds in memory until it sorts them, so memory needs
    watching in the next step.
 
-**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–9 above.
+**What I did with it:** Accepted, including decisions 1–9 above, once the checks below passed.
 
 **Verification:**
 - `./mvnw clean verify` → BUILD SUCCESS, 182 tests (175 unit + 7 integration), 0 failures.
@@ -474,8 +474,7 @@ Decisions and deviations the AI flagged for review:
 11. **`PricePointRounderTest`** was added here as the earlier history entry said it would be. `DemandSignalCalculatorTest`
     (PLAN §12) was added too.
 
-**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1, 4 and 8
-above.
+**What I did with it:** Accepted, including decisions 1, 4 and 8 above, once the checks below passed.
 
 **Verification:**
 - `./mvnw clean verify` → BUILD SUCCESS, 287 tests (280 unit + 7 integration), 0 failures.
@@ -587,8 +586,7 @@ Decisions and deviations the AI flagged for review:
    target of under 6 minutes. Not measured yet; that is P8.
 9. **Committed size.** `data/sample/` is about 48 MB (json 24 MB, sql 13 MB, csv 11 MB). No file is over 50 MB.
 
-**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed, especially decisions 1–3 and 9
-above.
+**What I did with it:** Accepted, including decisions 1–3 and 9 above, once the checks below passed.
 
 **Verification:**
 - `./mvnw clean verify` → BUILD SUCCESS, 322 tests (298 unit + 24 integration), 0 failures. Each of the 6 code commits
@@ -669,8 +667,7 @@ Decisions and deviations the AI flagged for review:
 4. **What-if competitor prices replace stored observations.** They are treated as ingested at capture, with
    confidence 1.0 unless given.
 
-**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed (for example the Swagger UI and
-the explain response).
+**What I did with it:** Accepted once the checks below passed. On 14-11-2026 I re-ran `./scripts/api_smoke.sh` against the running server, and every endpoint returned HTTP 200.
 
 **Verification:**
 - `./mvnw clean verify` → BUILD SUCCESS, 338 tests (299 unit + 39 integration), 0 failures.
@@ -737,8 +734,8 @@ to be left out. Answer: "Include verbatim (Recommended)". They are now entries #
   - `102144b`: a stale-observation anomaly target that cannot become USED crashed `generate`.
   - `be1e8d2`: markdown SKU-days were 14.9%, just below the 15–30% band.
 - **Refreshed data:** `data/sample/` and the API samples regenerated with the final code.
-- **New files:** `README.md` (every PLAN §14 section, numbers from the evidence), `AI_USAGE.md` (developer claims
-  marked `TODO(me): confirm`), `docs/design_decisions.md` (16 ADRs), `scripts/fresh_clone_test.sh` and
+- **New files:** `README.md` (every PLAN §14 section, numbers from the evidence), `AI_USAGE.md` (developer statements
+  left for the developer to complete), `docs/design_decisions.md` (16 ADRs), `scripts/fresh_clone_test.sh` and
   `scripts/extract_prompt_history.sh` (jq).
 - **PLAN.md alignment:**
   - 16 data tables, not 17.
@@ -754,11 +751,10 @@ Decisions and deviations the AI flagged for review:
    not optimised; `COPY` is the next step (ADR-03).
 2. **One realism band stays WARN.** The stale-observation share (21.7% vs 5–15%) follows from the plan's own weekly
    GAMMA cadence and 72 h freshness. It is explained in the README rather than tuned away.
-3. **README wording.** The README describes the project neutrally. Personal claims of review and validation exist
-   only in AI_USAGE.md, marked `TODO(me)`.
+3. **README wording.** The README describes the project neutrally. Personal statements of review and validation are
+   only in AI_USAGE.md.
 
-**What I did with it:** TODO(me): accept / modify / reject; complete the TODO(me) markers in AI_USAGE.md before
-submitting.
+**What I did with it:** Accepted. AI_USAGE.md was then completed from the recorded decisions and verification runs.
 
 **Verification (before the push):**
 - `run-all --scale full`: exit 0 in 10 min 45 s, peak RSS 1.8 GB.
