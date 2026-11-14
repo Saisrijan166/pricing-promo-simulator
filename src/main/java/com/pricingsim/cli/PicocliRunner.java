@@ -34,6 +34,9 @@ public class PicocliRunner implements CommandLineRunner, ExitCodeGenerator {
         CommandLine commandLine = new CommandLine(command, factory);
         commandLine.setExecutionExceptionHandler((ex, cl, parseResult) -> {
             cl.getErr().println("Error: " + ex.getMessage());
+            if (System.getenv("PRICING_SIM_DEBUG") != null) {
+                ex.printStackTrace(cl.getErr()); // full trace on request: PRICING_SIM_DEBUG=1
+            }
             return cl.getCommandSpec().exitCodeOnExecutionException();
         });
         exitCode = commandLine.execute(args);

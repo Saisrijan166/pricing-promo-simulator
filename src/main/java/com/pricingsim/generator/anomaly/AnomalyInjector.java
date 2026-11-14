@@ -57,6 +57,8 @@ public final class AnomalyInjector implements SimulationHooks {
     private final AnomalyPlan plan;
     private final RandomStreams streams;
     private AnomalyPlan.Target pendingOrder;
+    private String forcedObservation;
+    private final com.pricingsim.pricing.PricingPolicy policy;
     private final Map<String, Builder> byDecisionId = new TreeMap<>();
     private final Map<String, Builder> openSpanBySku = new TreeMap<>();
     private final TreeSet<String> injectedKeys = new TreeSet<>();
@@ -74,7 +76,8 @@ public final class AnomalyInjector implements SimulationHooks {
         String injected;
     }
 
-    public AnomalyInjector(AnomalyPlan plan, RandomStreams streams) {
+    public AnomalyInjector(AnomalyPlan plan, RandomStreams streams, com.pricingsim.pricing.PricingPolicy policy) {
+        this.policy = policy;
         this.plan = plan;
         this.streams = streams;
     }
@@ -97,9 +100,11 @@ public final class AnomalyInjector implements SimulationHooks {
                 yield new PricingEngine.Faults(forced, java.util.Collections.emptySortedSet(), false);
             }
             case STALE_OBSERVATION_AS_CURRENT -> {
-                String stale = baseline.competitor().assessments().stream()
-                        .filter(a -> a.usage() == ObservationUsage.EXCLUDED_STALE)
-                        .map(CompetitorReferenceResolver.Assessment::observationId).findFirst().orElseThrow();
+                String stale = CandidateCollector.forceableStale(baseline, policy);
+                if (stale == null) {
+                    throw new IllegalStateException("Planned stale-observation anomaly no longer eligible: " + t);
+                }
+                forcedObservation = stale;
                 yield new PricingEngine.Faults(null, new TreeSet<>(List.of(stale)), false);
             }
             case MARGIN_BEFORE_DISCOUNT -> new PricingEngine.Faults(null, java.util.Collections.emptySortedSet(), true);
@@ -123,10 +128,12 @@ public final class AnomalyInjector implements SimulationHooks {
                 byDecisionId.put(decisionId, b); // covered price-history rows are added as they are written
             }
             case STALE_OBSERVATION_AS_CURRENT -> {
-                String used = result.competitor().assessments().stream()
-                        .filter(a -> a.usage() == ObservationUsage.USED
-                                && a.ageHours().compareTo(BigDecimal.valueOf(72)) > 0)
-                        .map(CompetitorReferenceResolver.Assessment::observationId).findFirst().orElseThrow();
+                String used = forcedObservation;
+                boolean isUsed = result.competitor().assessments().stream()
+                        .anyMatch(a -> a.observationId().equals(used) && a.usage() == ObservationUsage.USED);
+                if (!isUsed) {
+                    throw new IllegalStateException("Forced observation " + used + " was not used for " + t);
+                }
                 b.related.add(used);
                 b.field = "price_decision_observation.usage";
                 b.baseline = ObservationUsage.EXCLUDED_STALE.name();

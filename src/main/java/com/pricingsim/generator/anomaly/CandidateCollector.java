@@ -31,7 +31,8 @@ import com.pricingsim.pricing.PromotionStackResolver;
  *   <li>PRICE_BELOW_FLOOR: an engine WEEKLY_REVIEW decision without a guardrail conflict.</li>
  *   <li>PROMO_STACK_VIOLATION: an order where a coupon was rejected for a stacking conflict (exclusive, excluded pair,
  *       stack limit or cap) and forcing it still leaves a positive net amount.</li>
- *   <li>STALE_OBSERVATION_AS_CURRENT: a decision with at least one EXCLUDED_STALE observation.</li>
+ *   <li>STALE_OBSERVATION_AS_CURRENT: a decision with an EXCLUDED_STALE observation that would be USED if treated as
+ *       fresh (confidence ≥ 0.80, stored age above 72.00 h).</li>
  *   <li>MARGIN_BEFORE_DISCOUNT: a decision that rejected a markdown with PROMO_REJECTED_MARGIN, where re-applying it
  *       leaves a positive net price.</li>
  *   <li>PRICE_CHANGE_WITHOUT_REASON: a Tuesday–Thursday without a decision, where a ±8% move fits inside
@@ -43,6 +44,24 @@ public final class CandidateCollector implements SimulationHooks {
     static final BigDecimal MAX_ROGUE_MOVE = new BigDecimal("0.08");
 
     private final Map<IssueType, List<AnomalyPlan.Target>> candidates = new EnumMap<>(IssueType.class);
+    private final com.pricingsim.pricing.PricingPolicy policy;
+
+    public CandidateCollector(com.pricingsim.pricing.PricingPolicy policy) {
+        this.policy = policy;
+    }
+
+    /**
+     * The first EXCLUDED_STALE observation (by ID) that becomes USED when treated as fresh: its match confidence passes
+     * and its stored age (2 dp) is visibly above the freshness window. Null if there is none.
+     */
+    static String forceableStale(PricingResult baseline, com.pricingsim.pricing.PricingPolicy policy) {
+        return baseline.competitor().assessments().stream()
+                .filter(a -> a.usage() == ObservationUsage.EXCLUDED_STALE)
+                .filter(a -> a.observation().matchConfidence().compareTo(policy.minMatchConfidence()) >= 0)
+                .filter(a -> a.ageHours().compareTo(BigDecimal.valueOf(policy.freshnessHours())) > 0)
+                .map(com.pricingsim.pricing.CompetitorReferenceResolver.Assessment::observationId)
+                .findFirst().orElse(null);
+    }
 
     public Map<IssueType, List<AnomalyPlan.Target>> candidates() {
         return candidates;
@@ -60,7 +79,7 @@ public final class CandidateCollector implements SimulationHooks {
                 && !baseline.guardrailConflict()) {
             add(IssueType.PRICE_BELOW_FLOOR, sku, day, -1);
         }
-        if (baseline.competitor().assessments().stream().anyMatch(a -> a.usage() == ObservationUsage.EXCLUDED_STALE)) {
+        if (forceableStale(baseline, policy) != null) {
             add(IssueType.STALE_OBSERVATION_AS_CURRENT, sku, day, -1);
         }
         if (marginReapplicable(baseline)) {

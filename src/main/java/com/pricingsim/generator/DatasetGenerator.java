@@ -55,12 +55,12 @@ public final class DatasetGenerator {
         if (perType == 0) {
             return run(settings, sink, SimulationHooks.NONE, List.of());
         }
-        CandidateCollector collector = new CandidateCollector();
+        CandidateCollector collector = new CandidateCollector(settings.policy());
         try (NullRowSink dryRun = new NullRowSink()) {
             run(settings, dryRun, collector, List.of());
         }
         AnomalyPlan plan = AnomalyPlanner.plan(collector.candidates(), perType, new RandomStreams(settings.seed()));
-        AnomalyInjector injector = new AnomalyInjector(plan, new RandomStreams(settings.seed()));
+        AnomalyInjector injector = new AnomalyInjector(plan, new RandomStreams(settings.seed()), settings.policy());
         Result result = run(settings, sink, injector, null);
         return new Result(result.rowCounts(), result.simulation(), result.decisions(), result.orders(),
                 injector.groundTruth());
