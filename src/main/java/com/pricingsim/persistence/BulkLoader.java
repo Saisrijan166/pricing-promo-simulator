@@ -31,7 +31,7 @@ import com.pricingsim.io.TableSpec;
  *   <li>Then the tables are loaded in {@link TableRegistry} FK-safe order with {@code JdbcTemplate.batchUpdate} in
  *       batches of 5,000 ({@code reWriteBatchedInserts=true} in the PostgreSQL URL turns them into multi-row inserts).
  *       Rows are streamed from CSV, so memory stays flat.</li>
- *   <li>Only the {@link TableRegistry} tables are loaded, from {@code csv/}. {@code labels/} is never read.</li>
+ *   <li>Only the {@link TableRegistry} tables are loaded, from {@code csv/}; the labels folder is never read.</li>
  * </ul>
  */
 public final class BulkLoader {

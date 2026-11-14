@@ -74,9 +74,9 @@ class NoLeakageTest {
     }
 
     @Test
-    void detectionAndValidationNeverTouchAnomalyCodeOrLabels() throws IOException {
+    void detectionValidationAndApiNeverTouchAnomalyCodeOrLabels() throws IOException {
         List<String> violations = new ArrayList<>();
-        for (String pkg : List.of("detection", "validation")) {
+        for (String pkg : List.of("detection", "validation", "api", "service", "persistence")) {
             Path root = Path.of("src/main/java/com/pricingsim").resolve(pkg);
             if (!Files.isDirectory(root)) {
                 continue;

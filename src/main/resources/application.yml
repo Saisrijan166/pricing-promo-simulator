@@ -21,6 +21,11 @@ spring:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false
+    generator:
+      write-bigdecimal-as-plain: true
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: ${SERVER_PORT:8080}

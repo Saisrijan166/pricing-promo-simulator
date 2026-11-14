@@ -199,6 +199,35 @@ class GeneratorScaleTest {
     }
 
     @Test
+    void starterRowCountsFollowTheProfile() {
+        GenerationSettings starter = TestSettings.clean("starter");
+        InMemoryRowSink s = new InMemoryRowSink();
+        new DatasetGenerator().generate(starter, s);
+        List<Product> ps = s.rows(TableRegistry.PRODUCT);
+        assertThat(ps).hasSize(200);
+        assertThat(s.count(TableRegistry.PROMOTION)).isEqualTo(80);
+        LocalDate start = starter.windowStart();
+        LocalDate end = starter.windowEnd();
+        long days = 0;
+        long months = 0;
+        for (Product p : ps) {
+            LocalDate from = p.launchDate().isAfter(start) ? p.launchDate() : start;
+            LocalDate to = p.discontinuedDate() != null && p.discontinuedDate().minusDays(1).isBefore(end)
+                    ? p.discontinuedDate().minusDays(1) : end;
+            days += ChronoUnit.DAYS.between(from, to) + 1;
+            months += ChronoUnit.MONTHS.between(YearMonth.from(from), YearMonth.from(to)) + 1;
+        }
+        assertThat(s.count(TableRegistry.PRICE_HISTORY)).isEqualTo(days);
+        assertThat(s.count(TableRegistry.INVENTORY_SNAPSHOT)).isEqualTo(days);
+        assertThat(s.count(TableRegistry.COST_RECORD)).isEqualTo(months);
+        assertThat(s.<CostRecord>rows(TableRegistry.COST_RECORD)).extracting(CostRecord::costMonth)
+                .containsOnly("2026-01", "2026-02", "2026-03");
+        // 92% / 5% / 3% of 200 SKUs.
+        assertThat(ps.stream().filter(p -> !p.launchDate().isBefore(start)).count()).isEqualTo(10);
+        assertThat(ps.stream().filter(p -> p.discontinuedDate() != null).count()).isEqualTo(6);
+    }
+
+    @Test
     void rowCountsReportedMatchSink() {
         for (Map.Entry<String, Long> e : result.rowCounts().entrySet()) {
             assertThat(e.getValue()).as(e.getKey()).isEqualTo(sink.count(TableRegistry.byName(e.getKey())));

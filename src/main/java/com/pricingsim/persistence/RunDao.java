@@ -46,6 +46,13 @@ public final class RunDao {
                 succeeded ? "SUCCEEDED" : "FAILED", now(), summaryJson, runId);
     }
 
+    /** The most recent finished run of a command: (run_id, input_path), if any. */
+    public java.util.Optional<java.util.Map<String, Object>> latest(Command command) {
+        return jdbc.queryForList("SELECT run_id, input_path, status, finished_at FROM pipeline_run WHERE command = ?"
+                + " AND finished_at IS NOT NULL ORDER BY finished_at DESC, run_id DESC LIMIT 1", command.name())
+                .stream().findFirst().map(Rows::normalize);
+    }
+
     private static OffsetDateTime now() {
         return OffsetDateTime.ofInstant(Instant.now(), ZoneOffset.UTC);
     }

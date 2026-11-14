@@ -511,3 +511,81 @@ above.
 - `out/starter` copied to `data/sample/` (without `run_log.json`, which holds wall-clock time), then
   `cd data/sample && sha256sum -c checksums.sha256` → all 18 files OK.
 - `sql/schema.sql` + `sql/seed.sql` loaded into a fresh PostgreSQL database with matching row counts.
+
+---
+
+### #07 — 2026-11-14 11:02 UTC — Claude Code (Opus 5.5) — Phase P7 REST API and the complete test suite
+
+**Prompt (verbatim):**
+
+```text
+Read PLAN.md (§12, §13). Implement phase P7 on top of the existing pipeline.
+
+Deliverables:
+1. REST API per PLAN §13:
+   - Controllers: PricingController, DecisionController, ExceptionController, ProductController and ReportController.
+   - service: SimulationService, DecisionExplainService, ExceptionQueryService and ReportService.
+   - persistence DAOs: PricingInputDao, DecisionQueryDao, ExceptionDao and RunDao.
+   - DTOs, ApiExceptionHandler (RFC 7807 ProblemDetail) and OpenApiConfig.
+   POST /pricing/simulate is read-only and reuses PricingEngine.
+   /decisions/{id}/explain returns the full traceability chain, and links only detector findings (never labels).
+2. Tests:
+   - PricingControllerIT, DecisionControllerIT and ExceptionControllerIT (MockMvc, H2): success paths, 400 validation, 404 ProblemDetail, paging and filters.
+   - EngineReplayIT: 100 stored non-anomalous decisions, re-run from the DB, give the identical final price and reasons.
+   - Close every remaining gap against the PLAN §12 test list.
+3. scripts/api_smoke.sh: curl simulate, explain and exceptions against a running server; save the real responses to docs/evidence/api_samples.md.
+4. docs/api.md: endpoints, request and response examples, curl commands.
+
+Done when:
+- ./mvnw clean verify → all tests green. Every class listed in PLAN §12 exists and runs.
+- With the starter data loaded, `java -jar target/pricing-sim.jar` serves http://localhost:8080/swagger-ui.html,
+  and `./scripts/api_smoke.sh` exits 0 with non-empty responses for all three endpoints.
+
+Finally: append this prompt to PROMPT_HISTORY.md, then commit (PLAN §16 step 15). Do not push yet.
+```
+
+This is `BUILD_PROMPTS.md` Prompt 5, unchanged.
+
+**What AI produced:** One commit (PLAN §16 step 15).
+- **API (`api/`):** `PricingController` (`POST /api/v1/pricing/simulate`), `DecisionController` (`/decisions/{id}`,
+  `/decisions/{id}/explain`), `ExceptionController` (`/exceptions` with category / issueType / skuId / date filters and
+  paging), `ProductController` (`/products/{sku}/price-history`) and `ReportController` (`/reports/validation-summary`,
+  `/reports/evaluation`). DTOs are in `api/dto`. `ApiExceptionHandler` returns RFC 7807 ProblemDetail (404 unknown
+  resource, 400 validation).
+- **Config:** `config/OpenApiConfig` and `config/ApiConfig`. The API beans are `@Profile("!offline")`, so the DB-free
+  commands still start without a database.
+- **Services:** `SimulationService` (read-only; reuses `PricingEngine`), `DecisionExplainService` (the full chain and
+  detector findings on the decision or its price-history rows), `ExceptionQueryService` and `ReportService` (the files
+  of the latest VALIDATE / EVALUATE run).
+- **Persistence:** `PricingInputDao` rebuilds a `PricingContext` from the DB with the generator's own definitions.
+  `DecisionQueryDao`, `ExceptionDao`, `RunDao.latest` and `Rows` give driver-independent value types.
+- **Tests:** `PricingControllerIT` (4), `DecisionControllerIT` (6), `ExceptionControllerIT` (4), `EngineReplayIT` (1);
+  `GeneratorScaleTest` gained a starter-scale test; `NoLeakageTest` now also scans the api, service and persistence
+  code. All 25 test classes listed in PLAN §12 exist and run.
+- **Scripts and docs:** `scripts/api_smoke.sh`, which writes `docs/evidence/api_samples.md` from real responses and
+  pretty-prints without parsing numbers, so `249.00` stays `249.00`. `docs/api.md` covers endpoints, inputs, examples,
+  curl commands and errors.
+
+Decisions and deviations the AI flagged for review:
+1. **How simulate builds its inputs.** The trigger is the stored decision's trigger on that date, else INITIAL without
+   earlier price history, else WEEKLY_REVIEW. A stored MANUAL_OVERRIDE supplies its target price as the analyst's
+   price. So simulating a stored decision's date reproduces it; `EngineReplayIT` checks 100 decisions of a clean
+   starter dataset, explanation JSON included.
+2. **Mixed field naming.** Stored rows in `/decisions` and `/explain` keep their column names (snake_case), so they
+   match the data dictionary. DTO fields are camelCase.
+3. **Report files are found through the database.** The report endpoints serve the JSON files of the latest run,
+   located through `pipeline_run.input_path`. That path is relative (`out/<scale>`), so the server must be started
+   from the repository root.
+4. **What-if competitor prices replace stored observations.** They are treated as ingested at capture, with
+   confidence 1.0 unless given.
+
+**What I did with it:** TODO(me): accept / modify / reject, and note what you reviewed (for example the Swagger UI and
+the explain response).
+
+**Verification:**
+- `./mvnw clean verify` → BUILD SUCCESS, 338 tests (299 unit + 39 integration), 0 failures.
+- With the starter data loaded in PostgreSQL, `java -jar target/pricing-sim.jar`: `/swagger-ui.html` → HTTP 200 after
+  redirect, and `/v3/api-docs` is served.
+- `./scripts/api_smoke.sh` → exit 0. simulate 2,327 bytes, explain 4,896 bytes, exceptions 2,345 bytes, all HTTP 200.
+  The unknown-decision example returns a 404 ProblemDetail.
+- `generate --scale tiny` with an unreachable `DB_URL` still exits 0 (offline profile, no API beans).
